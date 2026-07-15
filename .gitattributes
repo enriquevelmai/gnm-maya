@@ -1,0 +1,2 @@
+# (No LFS patterns: everything heavy is downloaded/rendered at first run,
+# never committed — see gnm-maya/scripts/gnm_maya/bootstrap.py.)

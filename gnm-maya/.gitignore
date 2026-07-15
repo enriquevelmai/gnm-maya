@@ -1,0 +1,55 @@
+# Everything downloadable is fetched on first run (scripts/gnm_maya/
+# bootstrap.py): the portable runtime and the vendored google/GNM repo.
+# The repo ships code + docs only.
+venv/
+runtime/
+external/gnm_repo/
+external/GNM_version.json
+docs/shapes/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Scratch output dirs from generate.py / server.py / self-tests
+_out*/
+_topo/
+_sess*/
+_rt/
+_verify/
+_buildtest/
+_fit_test.json
+
+# Photo-fitting deps (~290 MB, files past GitHub limits) are installed on
+# demand via GNM > Fit from Photo (fitting_deps.py) — never committed.
+runtime/Lib/site-packages/mediapipe/
+runtime/Lib/site-packages/mediapipe-*.dist-info/
+runtime/Lib/site-packages/cv2/
+runtime/Lib/site-packages/opencv_python_headless-*.dist-info/
+runtime/Lib/site-packages/matplotlib/
+runtime/Lib/site-packages/matplotlib-*.dist-info/
+runtime/Lib/site-packages/mpl_toolkits/
+runtime/Lib/site-packages/pylab.py
+runtime/Lib/site-packages/google/protobuf/
+runtime/Lib/site-packages/protobuf-*.dist-info/
+runtime/Lib/site-packages/attr/
+runtime/Lib/site-packages/attrs/
+runtime/Lib/site-packages/attrs-*.dist-info/
+runtime/Lib/site-packages/flatbuffers/
+runtime/Lib/site-packages/flatbuffers-*.dist-info/
+runtime/Lib/site-packages/PIL/
+runtime/Lib/site-packages/pillow-*.dist-info/
+runtime/Lib/site-packages/kiwisolver*
+runtime/Lib/site-packages/cycler*
+runtime/Lib/site-packages/pyparsing*
+runtime/Lib/site-packages/dateutil/
+runtime/Lib/site-packages/python_dateutil-*.dist-info/
+runtime/Lib/site-packages/fontTools/
+runtime/Lib/site-packages/fonttools-*.dist-info/
+runtime/Lib/site-packages/contourpy/
+runtime/Lib/site-packages/contourpy-*.dist-info/
+runtime/Lib/site-packages/six*
+runtime/Lib/site-packages/packaging/
+runtime/Lib/site-packages/packaging-*.dist-info/
+runtime/Lib/site-packages/share/
+runtime/Lib/site-packages/bin/

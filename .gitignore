@@ -1,0 +1,3 @@
+# Python bytecode / scratch
+__pycache__/
+*.py[cod]
