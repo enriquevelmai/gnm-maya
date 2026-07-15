@@ -58,6 +58,8 @@ def _write_index_html(path, size, sections, semantic_rows):
              background:#1c1d22; display:block; }
   .row .name { font-family:Consolas, monospace; font-size:13px;
                color:#e4e6ea; margin-left:14px; }
+  .row .delta { font-size:12px; color:#8ab48a; margin-left:12px;
+                white-space:nowrap; }
   .lbl { font-size:11px; color:#6f7480; text-align:center; width:%(t)dpx; }
   .cell { display:flex; flex-direction:column; gap:3px; }
   .grid { display:flex; flex-wrap:wrap; gap:14px; }
@@ -102,7 +104,9 @@ def _write_index_html(path, size, sections, semantic_rows):
 
   for title, rows, neutral_file in sections:
     parts.append("<h2 id='%s'>%s</h2>" % (_anchor(title), html.escape(title)))
-    for name, fmin, fmax in rows:
+    for name, fmin, fmax, delta in rows:
+      badge = ("<span class='delta'>max &Delta; %.1f mm</span>" % delta
+               if delta is not None else "")
       parts.append(
           "<div class='row'>"
           "<div class='cell'><img src='%s' loading='lazy'>"
@@ -111,17 +115,20 @@ def _write_index_html(path, size, sections, semantic_rows):
           "<div class='lbl'>neutral</div></div>"
           "<div class='cell'><img src='%s' loading='lazy'>"
           "<div class='lbl'>max</div></div>"
-          "<span class='name'>%s</span></div>"
+          "<span class='name'>%s</span>%s</div>"
           % (html.escape(fmin), html.escape(neutral_file),
-             html.escape(fmax), html.escape(name)))
+             html.escape(fmax), html.escape(name), badge))
   if semantic_rows:
     parts.append("<h2 id='semantic'>Semantic expressions</h2>")
     parts.append("<div class='grid'>")
-    for name, fname in semantic_rows:
+    for name, fname, delta in semantic_rows:
+      lbl = html.escape(name)
+      if delta is not None:
+        lbl += " &middot; &Delta; %.1f mm" % delta
       parts.append(
           "<div class='cell'><img src='%s' loading='lazy'>"
           "<div class='lbl'>%s</div></div>"
-          % (html.escape(fname), html.escape(name)))
+          % (html.escape(fname), lbl))
     parts.append("</div>")
   parts.append("<a class='top' href='#top'>&uarr; top</a>")
   parts.append("</body></html>")
@@ -143,9 +150,10 @@ def _write_markdown(out_dir, sections, semantic_rows, img_width=110):
   index = [
       "# GNM head — shape gallery", "",
       "Min/max renders of every Identity/Expression slider mode (coefficient "
-      "&minus;%g / +%g), identical framing per group. Occluded parts (tongue, "
-      "teeth, pupils) are shown as isolated zooms. Open a group:" % (COEFF,
-                                                                     COEFF),
+      "&minus;%g / +%g), identical framing per group. **max &Delta;** is the "
+      "peak vertex displacement across the slider's full min&rarr;max range — "
+      "how strongly the mode deforms the head. Occluded parts (tongue, teeth, "
+      "pupils) are shown as isolated zooms. Open a group:" % (COEFF, COEFF),
       "",
   ]
   for title, rows, neutral_file in sections:
@@ -154,14 +162,17 @@ def _write_markdown(out_dir, sections, semantic_rows, img_width=110):
     lines = [
         "# %s" % title, "",
         "[&larr; back to the gallery index](README.md)", "",
-        "| mode | min (&minus;%g) | neutral | max (+%g) |" % (COEFF, COEFF),
-        "| --- | --- | --- | --- |",
+        "| mode | min (&minus;%g) | neutral | max (+%g) | max &Delta; |"
+        % (COEFF, COEFF),
+        "| --- | --- | --- | --- | --- |",
     ]
-    for name, fmin, fmax in rows:
+    for name, fmin, fmax, delta in rows:
+      dtxt = ("%.1f mm" % delta) if delta is not None else "&mdash;"
       lines.append(
           "| `%s` | <img src='%s' width='%d'> | <img src='%s' width='%d'> "
-          "| <img src='%s' width='%d'> |"
-          % (name, fmin, img_width, neutral_file, img_width, fmax, img_width))
+          "| <img src='%s' width='%d'> | %s |"
+          % (name, fmin, img_width, neutral_file, img_width, fmax, img_width,
+             dtxt))
     with open(os.path.join(out_dir, page), "w", encoding="utf-8") as f:
       f.write("\n".join(lines) + "\n")
 
@@ -169,9 +180,12 @@ def _write_markdown(out_dir, sections, semantic_rows, img_width=110):
     index += ["", "## Semantic expressions", "",
               "| | | | |", "| --- | --- | --- | --- |"]
     row = []
-    for name, fname in semantic_rows:
-      row.append("<img src='%s' width='%d'><br>`%s`"
-                 % (fname, img_width, name))
+    for name, fname, delta in semantic_rows:
+      lbl = "`%s`" % name
+      if delta is not None:
+        lbl += " &Delta; %.1f mm" % delta
+      row.append("<img src='%s' width='%d'><br>%s"
+                 % (fname, img_width, lbl))
       if len(row) == 4:
         index.append("| " + " | ".join(row) + " |")
         row = []
@@ -202,14 +216,17 @@ def _rebuild_html_from_manifest(out_dir):
     if key not in groups:
       groups[key] = []
       order.append(key)
-    groups[key].append((name, entry["min"], entry["max"]))
+    groups[key].append((name, entry["min"], entry["max"],
+                        entry.get("delta_mm")))
 
   neutrals = m.get("neutrals", {})
   sections = [("%s / %s (%d modes)" % (kind, prefix, len(groups[(kind, prefix)])),
                groups[(kind, prefix)],
                neutrals.get(prefix, "neutral.png"))
               for kind, prefix in order]
-  semantic_rows = sorted(m.get("semantic", {}).items())
+  sem_delta = m.get("semantic_delta", {})
+  semantic_rows = [(n, f, sem_delta.get(n))
+                   for n, f in sorted(m.get("semantic", {}).items())]
   _write_index_html(os.path.join(out_dir, "index.html"), m.get("size", 192),
                     sections, semantic_rows)
   _write_markdown(out_dir, sections, semantic_rows)
@@ -258,6 +275,7 @@ def main():
 
   # 20 semantic expressions (one image each; no min/max).
   semantic = {}
+  semantic_delta = {}
   try:
     import _semantic
     sampler = _semantic.Sampler(_REPO_DIR)
@@ -268,8 +286,11 @@ def main():
     for i, name in enumerate(_semantic.EXPRESSION):
       expr = sampler.sample_expression(i, seed=0)
       fname = "semantic_%s.png" % name
-      img = render_to(fname, core.eval_vertices(model, expression=expr))
+      sem_verts = core.eval_vertices(model, expression=expr)
+      img = render_to(fname, sem_verts)
       semantic[name] = fname
+      semantic_delta[name] = float(np.linalg.norm(
+          sem_verts - neutral_verts, axis=1).max() * 1000.0)
       diffs.append(("semantic_" + name,
                     float(np.abs(img - neutral_img).mean())))
       _log("  semantic %-16s" % name)
@@ -353,9 +374,11 @@ def main():
         name = names[k]
         vec = np.zeros(dim, np.float32)
         entry = {}
+        pair_verts = {}
         for sign, key in ((-COEFF, "min"), (COEFF, "max")):
           vec[k] = sign
           verts = core.eval_vertices(model, **{kind: vec})
+          pair_verts[key] = verts
           fname = "%s_%s_%s.png" % (kind, name, key)
           if zoom:
             img = zoom_render(verts, zoom)
@@ -365,18 +388,25 @@ def main():
             img = render_to(fname, verts)
           entry[key] = fname
           diffs.append((fname, float(np.abs(img - ref_img).mean())))
+        # Peak vertex displacement across the slider's full min->max range, in
+        # millimetres (model units are metres) — how strong this mode is.
+        entry["delta_mm"] = float(np.linalg.norm(
+            pair_verts["max"] - pair_verts["min"], axis=1).max() * 1000.0)
         images[name] = entry
-        rows.append((name, entry["min"], entry["max"]))
+        rows.append((name, entry["min"], entry["max"], entry["delta_mm"]))
       sections.append(("%s / %s (%d modes)" % (kind, prefix, end - start + 1),
                        rows, group_neutral))
       _log("  %s %-20s %d modes" % (kind, prefix, len(rows)))
 
+  semantic_rows = [(n, f, semantic_delta.get(n))
+                   for n, f in sorted(semantic.items())]
   _write_index_html(os.path.join(args.out, "index.html"), args.size,
-                    sections, sorted(semantic.items()))
-  _write_markdown(args.out, sections, sorted(semantic.items()))
+                    sections, semantic_rows)
+  _write_markdown(args.out, sections, semantic_rows)
 
   manifest = {"size": args.size, "images": images, "semantic": semantic,
-              "neutrals": neutrals}
+              "neutrals": neutrals,
+              "semantic_delta": semantic_delta}
   with open(os.path.join(args.out, "manifest.json"), "w") as f:
     json.dump(manifest, f, indent=2)
 

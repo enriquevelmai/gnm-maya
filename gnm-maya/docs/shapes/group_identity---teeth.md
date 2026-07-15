@@ -2,85 +2,85 @@
 
 [&larr; back to the gallery index](README.md)
 
-| mode | min (&minus;3) | neutral | max (+3) |
-| --- | --- | --- | --- |
-| `teeth_000` | <img src='identity_teeth_000_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_000_max.png' width='110'> |
-| `teeth_001` | <img src='identity_teeth_001_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_001_max.png' width='110'> |
-| `teeth_002` | <img src='identity_teeth_002_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_002_max.png' width='110'> |
-| `teeth_003` | <img src='identity_teeth_003_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_003_max.png' width='110'> |
-| `teeth_004` | <img src='identity_teeth_004_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_004_max.png' width='110'> |
-| `teeth_005` | <img src='identity_teeth_005_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_005_max.png' width='110'> |
-| `teeth_006` | <img src='identity_teeth_006_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_006_max.png' width='110'> |
-| `teeth_007` | <img src='identity_teeth_007_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_007_max.png' width='110'> |
-| `teeth_008` | <img src='identity_teeth_008_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_008_max.png' width='110'> |
-| `teeth_009` | <img src='identity_teeth_009_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_009_max.png' width='110'> |
-| `teeth_010` | <img src='identity_teeth_010_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_010_max.png' width='110'> |
-| `teeth_011` | <img src='identity_teeth_011_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_011_max.png' width='110'> |
-| `teeth_012` | <img src='identity_teeth_012_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_012_max.png' width='110'> |
-| `teeth_013` | <img src='identity_teeth_013_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_013_max.png' width='110'> |
-| `teeth_014` | <img src='identity_teeth_014_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_014_max.png' width='110'> |
-| `teeth_015` | <img src='identity_teeth_015_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_015_max.png' width='110'> |
-| `teeth_016` | <img src='identity_teeth_016_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_016_max.png' width='110'> |
-| `teeth_017` | <img src='identity_teeth_017_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_017_max.png' width='110'> |
-| `teeth_018` | <img src='identity_teeth_018_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_018_max.png' width='110'> |
-| `teeth_019` | <img src='identity_teeth_019_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_019_max.png' width='110'> |
-| `teeth_020` | <img src='identity_teeth_020_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_020_max.png' width='110'> |
-| `teeth_021` | <img src='identity_teeth_021_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_021_max.png' width='110'> |
-| `teeth_022` | <img src='identity_teeth_022_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_022_max.png' width='110'> |
-| `teeth_023` | <img src='identity_teeth_023_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_023_max.png' width='110'> |
-| `teeth_024` | <img src='identity_teeth_024_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_024_max.png' width='110'> |
-| `teeth_025` | <img src='identity_teeth_025_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_025_max.png' width='110'> |
-| `teeth_026` | <img src='identity_teeth_026_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_026_max.png' width='110'> |
-| `teeth_027` | <img src='identity_teeth_027_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_027_max.png' width='110'> |
-| `teeth_028` | <img src='identity_teeth_028_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_028_max.png' width='110'> |
-| `teeth_029` | <img src='identity_teeth_029_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_029_max.png' width='110'> |
-| `teeth_030` | <img src='identity_teeth_030_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_030_max.png' width='110'> |
-| `teeth_031` | <img src='identity_teeth_031_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_031_max.png' width='110'> |
-| `teeth_032` | <img src='identity_teeth_032_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_032_max.png' width='110'> |
-| `teeth_033` | <img src='identity_teeth_033_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_033_max.png' width='110'> |
-| `teeth_034` | <img src='identity_teeth_034_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_034_max.png' width='110'> |
-| `teeth_035` | <img src='identity_teeth_035_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_035_max.png' width='110'> |
-| `teeth_036` | <img src='identity_teeth_036_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_036_max.png' width='110'> |
-| `teeth_037` | <img src='identity_teeth_037_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_037_max.png' width='110'> |
-| `teeth_038` | <img src='identity_teeth_038_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_038_max.png' width='110'> |
-| `teeth_039` | <img src='identity_teeth_039_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_039_max.png' width='110'> |
-| `teeth_040` | <img src='identity_teeth_040_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_040_max.png' width='110'> |
-| `teeth_041` | <img src='identity_teeth_041_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_041_max.png' width='110'> |
-| `teeth_042` | <img src='identity_teeth_042_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_042_max.png' width='110'> |
-| `teeth_043` | <img src='identity_teeth_043_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_043_max.png' width='110'> |
-| `teeth_044` | <img src='identity_teeth_044_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_044_max.png' width='110'> |
-| `teeth_045` | <img src='identity_teeth_045_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_045_max.png' width='110'> |
-| `teeth_046` | <img src='identity_teeth_046_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_046_max.png' width='110'> |
-| `teeth_047` | <img src='identity_teeth_047_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_047_max.png' width='110'> |
-| `teeth_048` | <img src='identity_teeth_048_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_048_max.png' width='110'> |
-| `teeth_049` | <img src='identity_teeth_049_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_049_max.png' width='110'> |
-| `teeth_050` | <img src='identity_teeth_050_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_050_max.png' width='110'> |
-| `teeth_051` | <img src='identity_teeth_051_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_051_max.png' width='110'> |
-| `teeth_052` | <img src='identity_teeth_052_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_052_max.png' width='110'> |
-| `teeth_053` | <img src='identity_teeth_053_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_053_max.png' width='110'> |
-| `teeth_054` | <img src='identity_teeth_054_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_054_max.png' width='110'> |
-| `teeth_055` | <img src='identity_teeth_055_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_055_max.png' width='110'> |
-| `teeth_056` | <img src='identity_teeth_056_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_056_max.png' width='110'> |
-| `teeth_057` | <img src='identity_teeth_057_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_057_max.png' width='110'> |
-| `teeth_058` | <img src='identity_teeth_058_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_058_max.png' width='110'> |
-| `teeth_059` | <img src='identity_teeth_059_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_059_max.png' width='110'> |
-| `teeth_060` | <img src='identity_teeth_060_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_060_max.png' width='110'> |
-| `teeth_061` | <img src='identity_teeth_061_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_061_max.png' width='110'> |
-| `teeth_062` | <img src='identity_teeth_062_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_062_max.png' width='110'> |
-| `teeth_063` | <img src='identity_teeth_063_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_063_max.png' width='110'> |
-| `teeth_064` | <img src='identity_teeth_064_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_064_max.png' width='110'> |
-| `teeth_065` | <img src='identity_teeth_065_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_065_max.png' width='110'> |
-| `teeth_066` | <img src='identity_teeth_066_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_066_max.png' width='110'> |
-| `teeth_067` | <img src='identity_teeth_067_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_067_max.png' width='110'> |
-| `teeth_068` | <img src='identity_teeth_068_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_068_max.png' width='110'> |
-| `teeth_069` | <img src='identity_teeth_069_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_069_max.png' width='110'> |
-| `teeth_070` | <img src='identity_teeth_070_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_070_max.png' width='110'> |
-| `teeth_071` | <img src='identity_teeth_071_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_071_max.png' width='110'> |
-| `teeth_072` | <img src='identity_teeth_072_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_072_max.png' width='110'> |
-| `teeth_073` | <img src='identity_teeth_073_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_073_max.png' width='110'> |
-| `teeth_074` | <img src='identity_teeth_074_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_074_max.png' width='110'> |
-| `teeth_075` | <img src='identity_teeth_075_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_075_max.png' width='110'> |
-| `teeth_076` | <img src='identity_teeth_076_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_076_max.png' width='110'> |
-| `teeth_077` | <img src='identity_teeth_077_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_077_max.png' width='110'> |
-| `teeth_078` | <img src='identity_teeth_078_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_078_max.png' width='110'> |
-| `teeth_079` | <img src='identity_teeth_079_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_079_max.png' width='110'> |
+| mode | min (&minus;3) | neutral | max (+3) | max &Delta; |
+| --- | --- | --- | --- | --- |
+| `teeth_000` | <img src='identity_teeth_000_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_000_max.png' width='110'> | 22.9 mm |
+| `teeth_001` | <img src='identity_teeth_001_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_001_max.png' width='110'> | 9.8 mm |
+| `teeth_002` | <img src='identity_teeth_002_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_002_max.png' width='110'> | 7.6 mm |
+| `teeth_003` | <img src='identity_teeth_003_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_003_max.png' width='110'> | 2.8 mm |
+| `teeth_004` | <img src='identity_teeth_004_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_004_max.png' width='110'> | 2.5 mm |
+| `teeth_005` | <img src='identity_teeth_005_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_005_max.png' width='110'> | 4.9 mm |
+| `teeth_006` | <img src='identity_teeth_006_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_006_max.png' width='110'> | 3.2 mm |
+| `teeth_007` | <img src='identity_teeth_007_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_007_max.png' width='110'> | 3.3 mm |
+| `teeth_008` | <img src='identity_teeth_008_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_008_max.png' width='110'> | 4.5 mm |
+| `teeth_009` | <img src='identity_teeth_009_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_009_max.png' width='110'> | 4.7 mm |
+| `teeth_010` | <img src='identity_teeth_010_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_010_max.png' width='110'> | 3.7 mm |
+| `teeth_011` | <img src='identity_teeth_011_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_011_max.png' width='110'> | 4.9 mm |
+| `teeth_012` | <img src='identity_teeth_012_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_012_max.png' width='110'> | 4.8 mm |
+| `teeth_013` | <img src='identity_teeth_013_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_013_max.png' width='110'> | 3.3 mm |
+| `teeth_014` | <img src='identity_teeth_014_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_014_max.png' width='110'> | 2.4 mm |
+| `teeth_015` | <img src='identity_teeth_015_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_015_max.png' width='110'> | 3.1 mm |
+| `teeth_016` | <img src='identity_teeth_016_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_016_max.png' width='110'> | 2.7 mm |
+| `teeth_017` | <img src='identity_teeth_017_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_017_max.png' width='110'> | 2.6 mm |
+| `teeth_018` | <img src='identity_teeth_018_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_018_max.png' width='110'> | 2.9 mm |
+| `teeth_019` | <img src='identity_teeth_019_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_019_max.png' width='110'> | 2.7 mm |
+| `teeth_020` | <img src='identity_teeth_020_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_020_max.png' width='110'> | 3.4 mm |
+| `teeth_021` | <img src='identity_teeth_021_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_021_max.png' width='110'> | 4.3 mm |
+| `teeth_022` | <img src='identity_teeth_022_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_022_max.png' width='110'> | 4.0 mm |
+| `teeth_023` | <img src='identity_teeth_023_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_023_max.png' width='110'> | 2.5 mm |
+| `teeth_024` | <img src='identity_teeth_024_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_024_max.png' width='110'> | 4.3 mm |
+| `teeth_025` | <img src='identity_teeth_025_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_025_max.png' width='110'> | 3.1 mm |
+| `teeth_026` | <img src='identity_teeth_026_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_026_max.png' width='110'> | 3.3 mm |
+| `teeth_027` | <img src='identity_teeth_027_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_027_max.png' width='110'> | 3.7 mm |
+| `teeth_028` | <img src='identity_teeth_028_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_028_max.png' width='110'> | 3.5 mm |
+| `teeth_029` | <img src='identity_teeth_029_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_029_max.png' width='110'> | 2.0 mm |
+| `teeth_030` | <img src='identity_teeth_030_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_030_max.png' width='110'> | 3.2 mm |
+| `teeth_031` | <img src='identity_teeth_031_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_031_max.png' width='110'> | 2.1 mm |
+| `teeth_032` | <img src='identity_teeth_032_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_032_max.png' width='110'> | 2.8 mm |
+| `teeth_033` | <img src='identity_teeth_033_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_033_max.png' width='110'> | 3.0 mm |
+| `teeth_034` | <img src='identity_teeth_034_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_034_max.png' width='110'> | 2.8 mm |
+| `teeth_035` | <img src='identity_teeth_035_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_035_max.png' width='110'> | 2.6 mm |
+| `teeth_036` | <img src='identity_teeth_036_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_036_max.png' width='110'> | 2.1 mm |
+| `teeth_037` | <img src='identity_teeth_037_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_037_max.png' width='110'> | 3.1 mm |
+| `teeth_038` | <img src='identity_teeth_038_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_038_max.png' width='110'> | 1.8 mm |
+| `teeth_039` | <img src='identity_teeth_039_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_039_max.png' width='110'> | 2.1 mm |
+| `teeth_040` | <img src='identity_teeth_040_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_040_max.png' width='110'> | 2.8 mm |
+| `teeth_041` | <img src='identity_teeth_041_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_041_max.png' width='110'> | 3.0 mm |
+| `teeth_042` | <img src='identity_teeth_042_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_042_max.png' width='110'> | 1.7 mm |
+| `teeth_043` | <img src='identity_teeth_043_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_043_max.png' width='110'> | 2.1 mm |
+| `teeth_044` | <img src='identity_teeth_044_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_044_max.png' width='110'> | 1.8 mm |
+| `teeth_045` | <img src='identity_teeth_045_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_045_max.png' width='110'> | 1.7 mm |
+| `teeth_046` | <img src='identity_teeth_046_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_046_max.png' width='110'> | 2.7 mm |
+| `teeth_047` | <img src='identity_teeth_047_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_047_max.png' width='110'> | 2.8 mm |
+| `teeth_048` | <img src='identity_teeth_048_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_048_max.png' width='110'> | 1.8 mm |
+| `teeth_049` | <img src='identity_teeth_049_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_049_max.png' width='110'> | 2.6 mm |
+| `teeth_050` | <img src='identity_teeth_050_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_050_max.png' width='110'> | 2.0 mm |
+| `teeth_051` | <img src='identity_teeth_051_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_051_max.png' width='110'> | 2.3 mm |
+| `teeth_052` | <img src='identity_teeth_052_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_052_max.png' width='110'> | 2.3 mm |
+| `teeth_053` | <img src='identity_teeth_053_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_053_max.png' width='110'> | 1.5 mm |
+| `teeth_054` | <img src='identity_teeth_054_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_054_max.png' width='110'> | 2.4 mm |
+| `teeth_055` | <img src='identity_teeth_055_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_055_max.png' width='110'> | 1.6 mm |
+| `teeth_056` | <img src='identity_teeth_056_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_056_max.png' width='110'> | 1.5 mm |
+| `teeth_057` | <img src='identity_teeth_057_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_057_max.png' width='110'> | 2.1 mm |
+| `teeth_058` | <img src='identity_teeth_058_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_058_max.png' width='110'> | 2.0 mm |
+| `teeth_059` | <img src='identity_teeth_059_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_059_max.png' width='110'> | 2.6 mm |
+| `teeth_060` | <img src='identity_teeth_060_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_060_max.png' width='110'> | 1.4 mm |
+| `teeth_061` | <img src='identity_teeth_061_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_061_max.png' width='110'> | 1.2 mm |
+| `teeth_062` | <img src='identity_teeth_062_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_062_max.png' width='110'> | 1.4 mm |
+| `teeth_063` | <img src='identity_teeth_063_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_063_max.png' width='110'> | 1.3 mm |
+| `teeth_064` | <img src='identity_teeth_064_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_064_max.png' width='110'> | 1.0 mm |
+| `teeth_065` | <img src='identity_teeth_065_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_065_max.png' width='110'> | 2.3 mm |
+| `teeth_066` | <img src='identity_teeth_066_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_066_max.png' width='110'> | 1.5 mm |
+| `teeth_067` | <img src='identity_teeth_067_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_067_max.png' width='110'> | 1.6 mm |
+| `teeth_068` | <img src='identity_teeth_068_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_068_max.png' width='110'> | 1.4 mm |
+| `teeth_069` | <img src='identity_teeth_069_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_069_max.png' width='110'> | 1.3 mm |
+| `teeth_070` | <img src='identity_teeth_070_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_070_max.png' width='110'> | 1.4 mm |
+| `teeth_071` | <img src='identity_teeth_071_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_071_max.png' width='110'> | 1.5 mm |
+| `teeth_072` | <img src='identity_teeth_072_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_072_max.png' width='110'> | 2.8 mm |
+| `teeth_073` | <img src='identity_teeth_073_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_073_max.png' width='110'> | 1.0 mm |
+| `teeth_074` | <img src='identity_teeth_074_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_074_max.png' width='110'> | 0.9 mm |
+| `teeth_075` | <img src='identity_teeth_075_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_075_max.png' width='110'> | 1.5 mm |
+| `teeth_076` | <img src='identity_teeth_076_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_076_max.png' width='110'> | 1.3 mm |
+| `teeth_077` | <img src='identity_teeth_077_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_077_max.png' width='110'> | 1.9 mm |
+| `teeth_078` | <img src='identity_teeth_078_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_078_max.png' width='110'> | 2.0 mm |
+| `teeth_079` | <img src='identity_teeth_079_min.png' width='110'> | <img src='neutral_teeth.png' width='110'> | <img src='identity_teeth_079_max.png' width='110'> | 2.2 mm |
