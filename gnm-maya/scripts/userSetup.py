@@ -82,9 +82,14 @@ def build_menu():
       command="import gnm_maya; gnm_maya.add_shelf_button()",
   )
   cmds.menuItem(
-      label="Check for Updates...",
+      label="Check for GNM Model Updates...",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.check_updates()",
+  )
+  cmds.menuItem(
+      label="Check for gnm-maya Tool Updates...",
+      parent="gnmMenu",
+      command="import gnm_maya; gnm_maya.check_tool_updates()",
   )
   cmds.menuItem(
       label="Run GUI Test",

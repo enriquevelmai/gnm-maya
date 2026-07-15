@@ -1136,35 +1136,41 @@ def _prewarm_worker(parent):
     logger.warning("worker pre-warm failed: %s", done["err"])
 
 
-def _check_updates_async():
-  """Non-blocking upstream version check; offers the update dialog if newer.
+def _check_updates_async_generic(mod, display_name, menu_hint):
+  """Non-blocking upstream version check for either updater module; offers
+  the update dialog if newer.
 
-  Runs the network call on a thread and defers any UI to the main thread. All
-  failures (offline, rate-limit) are silent — this is a courtesy check.
+  ``mod`` is ``updater`` (GNM model) or ``tool_updater`` (this tool) — both
+  expose check()/download_and_install()/short()/_post_update_dialog() with the
+  same shapes, just pointed at different repos. Runs the network call on a
+  thread and defers any UI to the main thread. All failures (offline,
+  rate-limit) are silent — this is a courtesy check.
   """
   import threading
   import maya.utils
-  from gnm_maya import updater
 
   def worker():
     try:
-      info = updater.check()
+      info = mod.check()
     except Exception:
       return
     if not info.get("update_available"):
-      logger.info("GNM up to date (%s)", updater.short(info["installed_sha"]))
+      logger.info("%s up to date (%s)", display_name,
+                  mod.short(info["installed_sha"]))
       return
 
     def offer():
       import maya.cmds as cmds
       ans = cmds.confirmDialog(
-          title="GNM update available",
-          message=("A newer google/GNM is available.\n\nInstalled: %s (%s)\n"
+          title="%s update available" % display_name,
+          message=("A newer %s is available.\n\nInstalled: %s (%s)\n"
                    "Latest:    %s (%s)\n\nDownload now? (You can always use "
-                   "GNM > Check for Updates later.)"
-                   % (updater.short(info["installed_sha"]),
+                   "%s later.)"
+                   % (display_name,
+                      mod.short(info["installed_sha"]),
                       info["installed_date"] or "?",
-                      updater.short(info["latest_sha"]), info["latest_date"])),
+                      mod.short(info["latest_sha"]), info["latest_date"],
+                      menu_hint)),
           button=["Download", "Skip"], defaultButton="Skip",
           cancelButton="Skip", dismissString="Skip")
       if ans != "Download":
@@ -1172,18 +1178,32 @@ def _check_updates_async():
       import maya.cmds as cmds2
       cmds2.waitCursor(state=True)
       try:
-        latest = updater.download_and_install()
+        latest = mod.download_and_install()
       except Exception as e:
         cmds2.waitCursor(state=False)
-        cmds2.confirmDialog(title="GNM Update",
+        cmds2.confirmDialog(title="%s Update" % display_name,
                             message="Update failed:\n%s" % e, button=["OK"])
         return
       cmds2.waitCursor(state=False)
-      updater._post_update_dialog(latest)  # offers restart + running tests
+      mod._post_update_dialog(latest)
 
     maya.utils.executeDeferred(offer)
 
   threading.Thread(target=worker, daemon=True).start()
+
+
+def _check_updates_async():
+  """Courtesy check for the vendored GNM model (external/gnm_repo)."""
+  from gnm_maya import updater
+  _check_updates_async_generic(updater, "google/GNM",
+                               "GNM > Check for GNM Model Updates")
+
+
+def _check_tool_updates_async():
+  """Courtesy check for this tool itself (gnm-maya)."""
+  from gnm_maya import tool_updater
+  _check_updates_async_generic(tool_updater, "gnm-maya tool",
+                               "GNM > Check for gnm-maya Tool Updates")
 
 
 def show():
@@ -1198,7 +1218,8 @@ def show():
   if not bootstrap.all_available():
     if not bootstrap.ensure_all_with_dialog():
       return None
-  _check_updates_async()  # courtesy check; user chooses via dialog
+  _check_updates_async()       # courtesy check for the GNM model; user chooses
+  _check_tool_updates_async()  # courtesy check for this tool itself
   _prewarm_worker(parent)
   heads = api.find_heads(selected_only=True) or api.find_heads()
   target = heads[0] if heads else None

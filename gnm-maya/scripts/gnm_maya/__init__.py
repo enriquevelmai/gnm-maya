@@ -17,7 +17,8 @@ import logging as _logging
 from gnm_maya.api import generate_head, generate_template
 
 __all__ = ["generate_head", "generate_template", "show_ui", "show_licenses",
-           "add_shelf_button", "check_updates", "run_gui_test", "logger"]
+           "add_shelf_button", "check_updates", "check_tool_updates",
+           "run_gui_test", "logger"]
 
 __version__ = "1.0.0"
 
@@ -56,9 +57,20 @@ def add_shelf_button(shelf=None):
 
 
 def check_updates():
-  """Check google/GNM for updates and offer to download them."""
+  """Check google/GNM (the vendored model) for updates and offer to
+  download them."""
   from gnm_maya import updater
   return updater.show_update_dialog()
+
+
+def check_tool_updates():
+  """Check gnm-maya (this tool) for updates and offer to self-update.
+
+  Unlike check_updates() (the GNM model), an update here changes the tool's
+  own code, so applying it requires restarting Maya afterwards.
+  """
+  from gnm_maya import tool_updater
+  return tool_updater.show_update_dialog()
 
 
 def run_gui_test():
