@@ -10,7 +10,7 @@ import json
 import logging
 import random
 
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import worker as _worker
 from gnm_maya import build as _build
@@ -24,10 +24,10 @@ STATE_ATTR = "gnmState"
 
 def find_heads(selected_only=False):
   """GNM head transforms in the scene (identified by the gnmState attr)."""
-  nodes = cmds.ls(selection=True, long=False) if selected_only \
-      else cmds.ls(type="transform", long=False)
+  nodes = mc.ls(selection=True, long=False) if selected_only \
+      else mc.ls(type="transform", long=False)
   return [n for n in (nodes or [])
-          if cmds.attributeQuery(STATE_ATTR, node=n, exists=True)]
+          if mc.attributeQuery(STATE_ATTR, node=n, exists=True)]
 
 
 class GnmHead(object):
@@ -77,23 +77,23 @@ class GnmHead(object):
   # --- state persistence ---------------------------------------------------
 
   def _save_state(self):
-    if not cmds.objExists(self.transform):
+    if not mc.objExists(self.transform):
       return
     attr = "%s.%s" % (self.transform, STATE_ATTR)
-    if not cmds.attributeQuery(STATE_ATTR, node=self.transform, exists=True):
-      cmds.addAttr(self.transform, longName=STATE_ATTR, dataType="string")
+    if not mc.attributeQuery(STATE_ATTR, node=self.transform, exists=True):
+      mc.addAttr(self.transform, longName=STATE_ATTR, dataType="string")
     data = json.dumps({
         "identity": self.identity,
         "expression": self.expression,
         "rotations": self.rotations,
         "translation": self.translation,
     })
-    cmds.setAttr(attr, data, type="string")
+    mc.setAttr(attr, data, type="string")
 
   def _load_state(self):
-    if not cmds.attributeQuery(STATE_ATTR, node=self.transform, exists=True):
+    if not mc.attributeQuery(STATE_ATTR, node=self.transform, exists=True):
       return False
-    raw = cmds.getAttr("%s.%s" % (self.transform, STATE_ATTR))
+    raw = mc.getAttr("%s.%s" % (self.transform, STATE_ATTR))
     if not raw:
       return False
     try:
@@ -116,7 +116,7 @@ class GnmHead(object):
         rotations=self.rotations,
         translation=self.translation,
     )
-    if not cmds.objExists(self.transform):
+    if not mc.objExists(self.transform):
       # The user deleted the mesh: self-heal by rebuilding it with the
       # current coefficients instead of erroring on every button press.
       old = self.transform
@@ -222,7 +222,7 @@ class GnmHead(object):
   def is_gnm_head(self, transform):
     """True if ``transform`` is a mesh with GNM's vertex count."""
     try:
-      return cmds.polyEvaluate(transform, vertex=True) == \
+      return mc.polyEvaluate(transform, vertex=True) == \
           self.topology.num_vertices
     except Exception:
       return False

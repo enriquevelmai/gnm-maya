@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 
-import maya.cmds as cmds
+from maya import cmds as mc
 import maya.mel as mel
 
 logger = logging.getLogger(__name__)
@@ -34,12 +34,12 @@ def export_rigged_fbx(transform, path=None):
   Returns:
     The absolute path of the written FBX file.
   """
-  if not cmds.objExists(transform):
+  if not mc.objExists(transform):
     raise ValueError("Transform does not exist: %s" % transform)
-  cmds.loadPlugin("fbxmaya", quiet=True)
+  mc.loadPlugin("fbxmaya", quiet=True)
 
   if path is None:
-    scene = cmds.file(query=True, sceneName=True)
+    scene = mc.file(query=True, sceneName=True)
     out_dir = os.path.dirname(scene) if scene else _exports_dir()
     if not os.path.isdir(out_dir):
       os.makedirs(out_dir)
@@ -47,7 +47,7 @@ def export_rigged_fbx(transform, path=None):
   path = os.path.abspath(path)
 
   joints = _skin_joints(transform)
-  cmds.select([transform] + joints, replace=True)
+  mc.select([transform] + joints, replace=True)
 
   mel.eval("FBXResetExport")
   mel.eval("FBXExportSmoothingGroups -v true")
@@ -62,15 +62,15 @@ def export_rigged_fbx(transform, path=None):
 
 def _skin_joints(transform):
   """Joints influencing ``transform``'s skinCluster(s), via history."""
-  history = cmds.listHistory(transform) or []
+  history = mc.listHistory(transform) or []
   joints = []
-  for skin in cmds.ls(history, type="skinCluster") or []:
-    for j in cmds.skinCluster(skin, query=True, influence=True) or []:
+  for skin in mc.ls(history, type="skinCluster") or []:
+    for j in mc.skinCluster(skin, query=True, influence=True) or []:
       if j not in joints:
         joints.append(j)
   if not joints:
     # Fallback: bake_rig names joints '<transform>_<joint>'.
-    joints = [j for j in cmds.ls(type="joint") or []
+    joints = [j for j in mc.ls(type="joint") or []
               if j.startswith(transform + "_")]
   if not joints:
     logger.warning("No skin joints found for '%s'; exporting mesh only.",

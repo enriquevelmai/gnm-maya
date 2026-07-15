@@ -29,17 +29,17 @@ def run():
   import maya.standalone
   maya.standalone.initialize(name="python")
   try:
-    import maya.cmds as cmds
+    from maya import cmds as mc
     from gnm_maya import api, worker
 
-    cmds.file(new=True, force=True)
+    mc.file(new=True, force=True)
 
     head = api.GnmHead(name="gnm_smoke")
     name = head.transform
-    assert cmds.objExists(name), "mesh not created"
+    assert mc.objExists(name), "mesh not created"
 
-    faces = cmds.polyEvaluate(name, face=True)
-    verts = cmds.polyEvaluate(name, vertex=True)
+    faces = mc.polyEvaluate(name, face=True)
+    verts = mc.polyEvaluate(name, vertex=True)
     exp_q = head.topology.num_quads
     assert faces == exp_q, "face count %d != quads %d" % (faces, exp_q)
     print("[ok] quad mesh: %d verts, %d faces" % (verts, faces))
@@ -50,7 +50,7 @@ def run():
     print("[ok] topology is quads + %d UVs" % nuv)
 
     for sg in ("gnm_skin_matSG", "gnm_left_eye_matSG", "gnm_tongue_matSG"):
-      assert cmds.objExists(sg), "missing shading group %s" % sg
+      assert mc.objExists(sg), "missing shading group %s" % sg
     print("[ok] per-part materials assigned")
 
     # expression must move geometry

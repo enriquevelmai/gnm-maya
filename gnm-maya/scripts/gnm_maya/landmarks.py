@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import config
 
@@ -39,19 +39,19 @@ def create_landmark_locators(head, scale=0.005):
   _check_indices(landmarks, head.topology.num_vertices)
 
   group = head.transform + "_landmarks"
-  if cmds.objExists(group):
-    cmds.delete(group)
-  group = cmds.group(empty=True, name=group)
+  if mc.objExists(group):
+    mc.delete(group)
+  group = mc.group(empty=True, name=group)
 
   for i, pairs in enumerate(landmarks):
     # Full paths throughout: short names like gnmLmk_00Shape become ambiguous
     # as soon as a second head's landmark group exists in the scene.
-    loc = cmds.spaceLocator(name="gnmLmk_%02d" % i)[0]
-    loc = cmds.parent(loc, group)[0]
+    loc = mc.spaceLocator(name="gnmLmk_%02d" % i)[0]
+    loc = mc.parent(loc, group)[0]
     loc = "%s|%s" % (group, loc.split("|")[-1])
-    shape = cmds.listRelatives(loc, shapes=True, fullPath=True)[0]
-    cmds.setAttr("%s.localScale" % shape, scale, scale, scale, type="double3")
-    cmds.xform(loc, translation=_landmark_position(head.transform, pairs),
+    shape = mc.listRelatives(loc, shapes=True, fullPath=True)[0]
+    mc.setAttr("%s.localScale" % shape, scale, scale, scale, type="double3")
+    mc.xform(loc, translation=_landmark_position(head.transform, pairs),
                worldSpace=True)
 
   logger.info("Created %d landmark locators under '%s'", len(landmarks), group)
@@ -86,12 +86,12 @@ def _on_landmark_moved(group, index, partner):
     return
   src = "%s|gnmLmk_%02d" % (group, index)
   dst = "%s|gnmLmk_%02d" % (group, partner)
-  if not (cmds.objExists(src) and cmds.objExists(dst)):
+  if not (mc.objExists(src) and mc.objExists(dst)):
     return
   _mirror_state["guard"] = True  # the setAttr below fires the partner's job
   try:
-    t = cmds.getAttr(src + ".translate")[0]
-    cmds.setAttr(dst + ".translate", -t[0], t[1], t[2], type="double3")
+    t = mc.getAttr(src + ".translate")[0]
+    mc.setAttr(dst + ".translate", -t[0], t[1], t[2], type="double3")
   finally:
     _mirror_state["guard"] = False
 
@@ -101,15 +101,15 @@ def enable_mirror(head):
   (and vice versa), x-negated. Returns the number of locators watched."""
   disable_mirror()
   group = head.transform + "_landmarks"
-  if not cmds.objExists(group):
+  if not mc.objExists(group):
     raise RuntimeError("No landmark group '%s'. Create landmarks first."
                        % group)
   count = 0
   for idx, partner in _mirror_partner_map().items():
     loc = "%s|gnmLmk_%02d" % (group, idx)
-    if not cmds.objExists(loc):
+    if not mc.objExists(loc):
       continue
-    job = cmds.scriptJob(
+    job = mc.scriptJob(
         attributeChange=[loc + ".translate",
                          lambda i=idx, p=partner, g=group:
                          _on_landmark_moved(g, i, p)])
@@ -123,8 +123,8 @@ def disable_mirror():
   """Remove all landmark-mirror scriptJobs. Returns how many were removed."""
   for job in _mirror_state["jobs"]:
     try:
-      if cmds.scriptJob(exists=job):
-        cmds.scriptJob(kill=job, force=True)
+      if mc.scriptJob(exists=job):
+        mc.scriptJob(kill=job, force=True)
     except Exception:
       pass
   n = len(_mirror_state["jobs"])
@@ -145,7 +145,7 @@ def fit_head_to_locators(head, lam=1.0):
   Returns the head's transform name.
   """
   group = head.transform + "_landmarks"
-  if not cmds.objExists(group):
+  if not mc.objExists(group):
     raise RuntimeError("No landmark group '%s'. Create landmarks first."
                        % group)
   if any(abs(a) > 1e-4 for r in head.rotations for a in r):
@@ -155,9 +155,9 @@ def fit_head_to_locators(head, lam=1.0):
   tx, ty, tz = head.translation
   for i in range(68):
     loc = "%s|gnmLmk_%02d" % (group, i)
-    if not cmds.objExists(loc):
+    if not mc.objExists(loc):
       raise RuntimeError("Missing locator gnmLmk_%02d." % i)
-    p = cmds.xform(loc, query=True, translation=True, worldSpace=True)
+    p = mc.xform(loc, query=True, translation=True, worldSpace=True)
     targets.append([p[0] - tx, p[1] - ty, p[2] - tz])
 
   vec = head.worker.fit_landmarks3d(targets, expression=head.expression,
@@ -179,17 +179,17 @@ def update_landmark_locators(head):
     The landmark group's transform name.
   """
   group = head.transform + "_landmarks"
-  if not cmds.objExists(group):
+  if not mc.objExists(group):
     raise ValueError("No landmark group '%s'; call create_landmark_locators "
                      "first." % group)
   landmarks = _load_landmark_defs()
-  locators = cmds.listRelatives(group, children=True, type="transform",
+  locators = mc.listRelatives(group, children=True, type="transform",
                                 fullPath=True) or []
   if len(locators) != len(landmarks):
     raise ValueError("Landmark group '%s' has %d locators, expected %d."
                      % (group, len(locators), len(landmarks)))
   for loc, pairs in zip(locators, landmarks):
-    cmds.xform(loc, translation=_landmark_position(head.transform, pairs),
+    mc.xform(loc, translation=_landmark_position(head.transform, pairs),
                worldSpace=True)
   logger.info("Updated %d landmark locators under '%s'", len(locators), group)
   return group
@@ -223,7 +223,7 @@ def _landmark_position(transform, pairs):
   """Barycentric world position: sum(weight * vertex_world_pos)."""
   x = y = z = 0.0
   for idx, w in pairs:
-    p = cmds.pointPosition("%s.vtx[%d]" % (transform, idx), world=True)
+    p = mc.pointPosition("%s.vtx[%d]" % (transform, idx), world=True)
     x += w * p[0]
     y += w * p[1]
     z += w * p[2]

@@ -13,7 +13,7 @@ import json
 import logging
 import os
 
-import maya.cmds as cmds
+from maya import cmds as mc
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +60,8 @@ def save_preset(head, name):
   # Thumbnail is best-effort: batch/mayapy has no viewport, and a failed
   # playblast must never fail the save itself.
   try:
-    frame = cmds.currentTime(query=True)
-    cmds.playblast(
+    frame = mc.currentTime(query=True)
+    mc.playblast(
         frame=[frame],
         format="image",
         compression="png",

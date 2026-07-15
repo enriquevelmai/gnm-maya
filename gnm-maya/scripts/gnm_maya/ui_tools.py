@@ -14,7 +14,7 @@ try:
 except ImportError:
   from PySide2 import QtWidgets, QtCore, QtGui
 
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import api
 
@@ -31,7 +31,7 @@ def _current_head():
   panel = getattr(ui, "_WINDOW", None)
   if panel is not None and getattr(panel, "head", None):
     try:
-      if cmds.objExists(panel.head.transform):
+      if mc.objExists(panel.head.transform):
         return panel.head
     except Exception:
       pass
@@ -158,7 +158,7 @@ def crowd_dialog():
       count=count.value(), columns=cols.value(), spacing=spacing.value(),
       identity_scale=idscale.value(), expression_scale=exscale.value(),
       bake=bake.isChecked())
-  cmds.select(made, replace=True)
+  mc.select(made, replace=True)
   logger.info("Crowd: created %d heads", len(made))
   return made
 
@@ -167,13 +167,13 @@ def crowd_dialog():
 
 def export_selected_fbx():
   from gnm_maya import export_fbx, settings
-  sel = cmds.ls(selection=True) or []
+  sel = mc.ls(selection=True) or []
   if not sel:
-    cmds.confirmDialog(title="Export FBX",
+    mc.confirmDialog(title="Export FBX",
                        message="Select a baked GNM rig first.", button=["OK"])
     return
   # Let the user pick the destination (folder remembered across sessions).
-  picked = cmds.fileDialog2(fileMode=0, caption="Export GNM rig as FBX",
+  picked = mc.fileDialog2(fileMode=0, caption="Export GNM rig as FBX",
                             fileFilter="FBX (*.fbx)",
                             startingDirectory=settings.exports_dir(),
                             dialogStyle=2) or []
@@ -182,7 +182,7 @@ def export_selected_fbx():
   path = picked[0]
   settings.set_exports_dir(os.path.dirname(path))
   path = export_fbx.export_rigged_fbx(sel[0], path=path)
-  cmds.confirmDialog(title="Export FBX", message="Exported:\n%s" % path,
+  mc.confirmDialog(title="Export FBX", message="Exported:\n%s" % path,
                      button=["OK"])
   return path
 
@@ -195,7 +195,7 @@ def open_shape_gallery():
   if page:
     webbrowser.open("file:///" + page.replace("\\", "/"))
     return page
-  cmds.confirmDialog(
+  mc.confirmDialog(
       title="Shape Gallery",
       message="Gallery not generated yet. From the gnm-maya folder run:\n"
               "runtime\\python.exe external\\gen_gallery.py --out docs\\shapes",
@@ -220,7 +220,7 @@ def fit_head_to_landmarks():
   from gnm_maya import landmarks
   head = _current_head()
   name = landmarks.fit_head_to_locators(head)
-  cmds.inViewMessage(assistMessage="GNM: head fitted to landmarks",
+  mc.inViewMessage(assistMessage="GNM: head fitted to landmarks",
                      position="topCenter", fade=True)
   # Refresh the panel sliders if it is open on this head.
   from gnm_maya import ui
@@ -237,10 +237,10 @@ def toggle_landmark_mirror():
   from gnm_maya import landmarks
   if landmarks._mirror_state["jobs"]:
     landmarks.disable_mirror()
-    cmds.inViewMessage(assistMessage="GNM landmark mirror: OFF",
+    mc.inViewMessage(assistMessage="GNM landmark mirror: OFF",
                        position="topCenter", fade=True)
     return False
   n = landmarks.enable_mirror(_current_head())
-  cmds.inViewMessage(assistMessage="GNM landmark mirror: ON (%d locators)" % n,
+  mc.inViewMessage(assistMessage="GNM landmark mirror: ON (%d locators)" % n,
                      position="topCenter", fade=True)
   return True

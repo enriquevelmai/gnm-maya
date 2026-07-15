@@ -53,11 +53,11 @@ def _copy_module(src_root, dst_root):
 
 
 def onMayaDroppedPythonFile(*args):
-  import maya.cmds as cmds
+  from maya import cmds as mc
 
   src_root = _this_dir()  # this file lives in the module root
   if not os.path.isdir(os.path.join(src_root, "scripts")):
-    cmds.confirmDialog(
+    mc.confirmDialog(
         title="GNM install failed",
         message="Could not find a 'scripts' folder next to this installer.\n"
                 "Keep drag_and_drop_install.py inside the gnm-maya folder.",
@@ -65,7 +65,7 @@ def onMayaDroppedPythonFile(*args):
     return
 
   # Maya user app dir, e.g. .../Documents/maya/  -> modules subfolder.
-  user_app = cmds.internalVar(userAppDir=True)
+  user_app = mc.internalVar(userAppDir=True)
   modules_dir = os.path.join(user_app, "modules")
   install_root = os.path.join(modules_dir, "gnm-maya")
 
@@ -74,7 +74,7 @@ def onMayaDroppedPythonFile(*args):
 
   if not already_there:
     if os.path.isdir(install_root):
-      ans = cmds.confirmDialog(
+      ans = mc.confirmDialog(
           title="GNM install",
           message="A GNM install already exists at:\n%s\n\nReplace its "
                   "code/docs with this copy? (Downloaded runtime/model data "
@@ -86,7 +86,7 @@ def onMayaDroppedPythonFile(*args):
     try:
       _copy_module(src_root, install_root)
     except Exception as e:
-      cmds.confirmDialog(title="GNM install failed",
+      mc.confirmDialog(title="GNM install failed",
                          message="Could not copy the module into:\n%s\n\n%s"
                                  % (install_root, e),
                          button=["OK"])
@@ -95,7 +95,7 @@ def onMayaDroppedPythonFile(*args):
   try:
     mod_path = _write_mod(install_root, modules_dir)
   except Exception as e:
-    cmds.confirmDialog(title="GNM install failed",
+    mc.confirmDialog(title="GNM install failed",
                        message="Could not write module file:\n%s" % e,
                        button=["OK"])
     return
@@ -138,4 +138,4 @@ def onMayaDroppedPythonFile(*args):
   else:
     msg += ("Installed, but live-load failed (%s).\n"
             "Restart Maya to finish loading." % load_err)
-  cmds.confirmDialog(title="GNM installed", message=msg, button=["OK"])
+  mc.confirmDialog(title="GNM installed", message=msg, button=["OK"])

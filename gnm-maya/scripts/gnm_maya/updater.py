@@ -129,26 +129,26 @@ def download_and_install(timeout=180):
 
 def show_update_dialog(parent=None):
   """Interactive check + optional download, via Maya confirm dialogs."""
-  import maya.cmds as cmds
+  from maya import cmds as mc
 
   try:
     info = check()
   except Exception as e:
     logger.exception("update check failed")
-    cmds.confirmDialog(title="GNM Update",
+    mc.confirmDialog(title="GNM Update",
                        message="Could not check for updates:\n%s" % e,
                        button=["OK"])
     return
 
   if not info["update_available"]:
-    cmds.confirmDialog(
+    mc.confirmDialog(
         title="GNM Update",
         message="You already have the latest GNM.\n\nVendored: %s (%s)"
                 % (short(info["installed_sha"]), info["installed_date"] or "?"),
         button=["OK"])
     return
 
-  ans = cmds.confirmDialog(
+  ans = mc.confirmDialog(
       title="GNM Update available",
       message=("A newer GNM is available.\n\n"
                "Installed: %s (%s)\nLatest:    %s (%s)\n\n"
@@ -160,22 +160,22 @@ def show_update_dialog(parent=None):
   if ans != "Download":
     return
 
-  cmds.waitCursor(state=True)
+  mc.waitCursor(state=True)
   try:
     latest = download_and_install()
   except Exception as e:
     logger.exception("update download failed")
-    cmds.waitCursor(state=False)
-    cmds.confirmDialog(title="GNM Update", message="Update failed:\n%s" % e,
+    mc.waitCursor(state=False)
+    mc.confirmDialog(title="GNM Update", message="Update failed:\n%s" % e,
                        button=["OK"])
     return
-  cmds.waitCursor(state=False)
+  mc.waitCursor(state=False)
   _post_update_dialog(latest)
 
 
 def _post_update_dialog(latest):
   """Shown after a successful download: offer restart + suggest running tests."""
-  import maya.cmds as cmds
+  from maya import cmds as mc
 
   msg = (
       "GNM updated to %s (%s).\n\n"
@@ -184,7 +184,7 @@ def _post_update_dialog(latest):
       "Recommended: run the tests to verify the new version works "
       "(GNM ▸ Run GUI Test, or gnm-maya/tests/gui_smoke_test.py)."
       % (short(latest["sha"]), latest["date"]))
-  ans = cmds.confirmDialog(
+  ans = mc.confirmDialog(
       title="GNM updated",
       message=msg,
       button=["Restart Maya", "Run GUI Test", "Done"],
@@ -197,7 +197,7 @@ def _post_update_dialog(latest):
       run_gui_test()
     except Exception as e:
       logger.exception("running GUI test failed")
-      cmds.confirmDialog(title="GUI Test", message="Could not run test:\n%s" % e,
+      mc.confirmDialog(title="GUI Test", message="Could not run test:\n%s" % e,
                          button=["OK"])
 
 
@@ -213,18 +213,18 @@ def maya_binary():
 
 def restart_maya():
   """Best-effort: launch a fresh Maya, then quit this one (handles unsaved)."""
-  import maya.cmds as cmds
+  from maya import cmds as mc
 
   binp = maya_binary()
   if not binp:
-    cmds.confirmDialog(
+    mc.confirmDialog(
         title="Restart Maya",
         message="Couldn't locate the Maya executable (MAYA_LOCATION unset).\n"
                 "Please restart Maya manually.", button=["OK"])
     return
 
-  if cmds.file(query=True, modified=True):
-    ans = cmds.confirmDialog(
+  if mc.file(query=True, modified=True):
+    ans = mc.confirmDialog(
         title="Unsaved changes",
         message="Your scene has unsaved changes that may be lost on restart.",
         button=["Save & Restart", "Restart Anyway", "Cancel"],
@@ -232,25 +232,25 @@ def restart_maya():
     if ans == "Cancel":
       return
     if ans == "Save & Restart":
-      if not cmds.file(query=True, sceneName=True):
-        cmds.confirmDialog(
+      if not mc.file(query=True, sceneName=True):
+        mc.confirmDialog(
             title="Save first",
             message="Scene is untitled — save it manually, then restart.",
             button=["OK"])
         return
       try:
-        cmds.file(save=True)
+        mc.file(save=True)
       except Exception as e:
-        cmds.confirmDialog(title="Save failed", message=str(e), button=["OK"])
+        mc.confirmDialog(title="Save failed", message=str(e), button=["OK"])
         return
 
   try:
     subprocess.Popen([binp])
   except Exception as e:
     logger.exception("relaunch failed")
-    cmds.confirmDialog(title="Restart Maya",
+    mc.confirmDialog(title="Restart Maya",
                        message="Could not launch a new Maya:\n%s" % e,
                        button=["OK"])
     return
   # Quit after the new instance has been spawned; force since save is handled.
-  cmds.evalDeferred(lambda: cmds.quit(force=True))
+  mc.evalDeferred(lambda: mc.quit(force=True))

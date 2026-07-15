@@ -182,19 +182,19 @@ def download_and_install(timeout=180):
 
 def show_update_dialog(parent=None):
   """Interactive check + optional download, via Maya confirm dialogs."""
-  import maya.cmds as cmds
+  from maya import cmds as mc
 
   try:
     info = check()
   except Exception as e:
     logger.exception("tool update check failed")
-    cmds.confirmDialog(title="gnm-maya Update",
+    mc.confirmDialog(title="gnm-maya Update",
                        message="Could not check for updates:\n%s" % e,
                        button=["OK"])
     return
 
   if not info["update_available"]:
-    cmds.confirmDialog(
+    mc.confirmDialog(
         title="gnm-maya Update",
         message="You already have the latest gnm-maya tool.\n\nInstalled: "
                 "%s (%s)" % (short(info["installed_sha"]),
@@ -202,7 +202,7 @@ def show_update_dialog(parent=None):
         button=["OK"])
     return
 
-  ans = cmds.confirmDialog(
+  ans = mc.confirmDialog(
       title="gnm-maya Update available",
       message=("A newer gnm-maya tool is available.\n\n"
                "Installed: %s (%s)\nLatest:    %s (%s)\n\n"
@@ -215,16 +215,16 @@ def show_update_dialog(parent=None):
   if ans != "Download":
     return
 
-  cmds.waitCursor(state=True)
+  mc.waitCursor(state=True)
   try:
     latest = download_and_install()
   except Exception as e:
     logger.exception("tool update download failed")
-    cmds.waitCursor(state=False)
-    cmds.confirmDialog(title="gnm-maya Update",
+    mc.waitCursor(state=False)
+    mc.confirmDialog(title="gnm-maya Update",
                        message="Update failed:\n%s" % e, button=["OK"])
     return
-  cmds.waitCursor(state=False)
+  mc.waitCursor(state=False)
   _post_update_dialog(latest)
 
 
@@ -235,7 +235,7 @@ def _post_update_dialog(latest):
   this tool's own code is already imported into Maya's Python process, so a
   restart is required — not just recommended — for the update to apply.
   """
-  import maya.cmds as cmds
+  from maya import cmds as mc
   from gnm_maya import updater  # reuse restart_maya (identical mechanism)
 
   msg = (
@@ -243,7 +243,7 @@ def _post_update_dialog(latest):
       "This tool's code is already loaded in this Maya session, so the "
       "update will NOT take effect until you restart Maya.\n\n"
       "Restart now?" % (short(latest["sha"]), latest["date"]))
-  ans = cmds.confirmDialog(
+  ans = mc.confirmDialog(
       title="gnm-maya updated", message=msg,
       button=["Restart Maya", "Later"],
       defaultButton="Restart Maya", cancelButton="Later", dismissString="Later")

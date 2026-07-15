@@ -57,13 +57,13 @@ def install():
 
 def install_with_dialog():
   """Confirm + install behind a wait cursor; report via dialogs."""
-  import maya.cmds as cmds
+  from maya import cmds as mc
   if available():
-    cmds.confirmDialog(title="GNM Photo Fitting",
+    mc.confirmDialog(title="GNM Photo Fitting",
                        message="Photo-fitting dependencies are already "
                                "installed.", button=["OK"])
     return True
-  ans = cmds.confirmDialog(
+  ans = mc.confirmDialog(
       title="GNM Photo Fitting",
       message="Photo fitting needs MediaPipe + OpenCV (~290 MB download,\n"
               "installed into the module's bundled runtime). Install now?",
@@ -83,5 +83,5 @@ def install_with_dialog():
     logger.exception("fitting deps install failed")
     msg = "Install failed:\n%s" % e
     ok = False
-  cmds.confirmDialog(title="GNM Photo Fitting", message=msg, button=["OK"])
+  mc.confirmDialog(title="GNM Photo Fitting", message=msg, button=["OK"])
   return ok

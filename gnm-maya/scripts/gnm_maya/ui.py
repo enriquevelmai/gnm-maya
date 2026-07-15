@@ -18,7 +18,7 @@ except ImportError:  # Maya 2022-2024
   from shiboken2 import wrapInstance
 
 from maya import OpenMayaUI as omui
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import api
 from gnm_maya import config
@@ -348,7 +348,7 @@ class GnmPanel(QtWidgets.QWidget):
         "The result needs no GNM runtime and exports to FBX.")
 
     try:
-      if adopt_transform and cmds.objExists(adopt_transform):
+      if adopt_transform and mc.objExists(adopt_transform):
         self.head = api.GnmHead.adopt(adopt_transform)
         self.status.setText("Adopted: %s" % self.head.transform)
       else:
@@ -664,7 +664,7 @@ class GnmPanel(QtWidgets.QWidget):
                                   self.sem_ethnicity.currentIndex(),
                                   seed=random.randint(0, 1 << 30))
       self._sync_sliders_from_head()
-      cmds.select(self.head.transform, replace=True)
+      mc.select(self.head.transform, replace=True)
       self.status.setText("Sampled identity: %s / %s" % (
           self.sem_gender.currentText(), self.sem_ethnicity.currentText()))
     except Exception as e:
@@ -874,7 +874,7 @@ class GnmPanel(QtWidgets.QWidget):
         self.head.randomize_expression(scale=scale, seed=self._rand_seed(),
                                        symmetric=self._symmetry)
       self._sync_sliders_from_head()
-      cmds.select(self.head.transform, replace=True)
+      mc.select(self.head.transform, replace=True)
       self.status.setText("Randomized %s (scale=%.2f%s)."
                           % (kind, scale, ", symmetric" if self._symmetry
                              and kind == "expression" else ""))
@@ -1058,7 +1058,7 @@ class GnmPanel(QtWidgets.QWidget):
       self._busy_status("Detecting landmarks + fitting identity…")
       self.head.fit_photo(path)
       self._sync_sliders_from_head()
-      cmds.select(self.head.transform, replace=True)
+      mc.select(self.head.transform, replace=True)
       self.status.setText("Fitted identity from photo (likeness, front-view "
                           "modes only).")
     except Exception as e:
@@ -1078,7 +1078,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Error: %s" % e)
 
   def _selected_gnm_heads(self):
-    return [n for n in (cmds.ls(selection=True, long=False) or [])
+    return [n for n in (mc.ls(selection=True, long=False) or [])
             if self.head.is_gnm_head(n)]
 
   def _reset_all(self):
@@ -1096,7 +1096,7 @@ class GnmPanel(QtWidgets.QWidget):
         if m != self.head.transform:
           self.head.reset_mesh_to_template(m)
       keep = targets if targets else [self.head.transform]
-      cmds.select(keep, replace=True)
+      mc.select(keep, replace=True)
       logger.info("Reset %s", keep)
       self.status.setText("Reset: %s" % ", ".join(keep))
     except Exception as e:
@@ -1160,8 +1160,8 @@ def _check_updates_async_generic(mod, display_name, menu_hint):
       return
 
     def offer():
-      import maya.cmds as cmds
-      ans = cmds.confirmDialog(
+      from maya import cmds as mc
+      ans = mc.confirmDialog(
           title="%s update available" % display_name,
           message=("A newer %s is available.\n\nInstalled: %s (%s)\n"
                    "Latest:    %s (%s)\n\nDownload now? (You can always use "
@@ -1175,16 +1175,15 @@ def _check_updates_async_generic(mod, display_name, menu_hint):
           cancelButton="Skip", dismissString="Skip")
       if ans != "Download":
         return
-      import maya.cmds as cmds2
-      cmds2.waitCursor(state=True)
+      mc.waitCursor(state=True)
       try:
         latest = mod.download_and_install()
       except Exception as e:
-        cmds2.waitCursor(state=False)
-        cmds2.confirmDialog(title="%s Update" % display_name,
-                            message="Update failed:\n%s" % e, button=["OK"])
+        mc.waitCursor(state=False)
+        mc.confirmDialog(title="%s Update" % display_name,
+                           message="Update failed:\n%s" % e, button=["OK"])
         return
-      cmds2.waitCursor(state=False)
+      mc.waitCursor(state=False)
       mod._post_update_dialog(latest)
 
     maya.utils.executeDeferred(offer)

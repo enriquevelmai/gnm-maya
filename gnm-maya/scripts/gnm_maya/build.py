@@ -6,7 +6,7 @@ Fixed topology means we build once, then animate via :func:`set_points`.
 from __future__ import annotations
 
 import maya.api.OpenMaya as om2
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import material
 
@@ -60,13 +60,13 @@ def build_mesh(topology, verts_flat, name="gnm_head"):
   # Name the transform.
   shape_path = fn.getPath(); shape_path.pop()
   transform = om2.MFnDagNode(shape_path.node()).name()
-  transform = cmds.rename(transform, name)
+  transform = mc.rename(transform, name)
 
   _assign_materials(transform, topology)
 
   # Soft normals but keep hard part boundaries (eyes/teeth) via 60-deg angle.
-  cmds.polySoftEdge(transform, angle=60, constructionHistory=False)
-  cmds.select(transform, replace=True)
+  mc.polySoftEdge(transform, angle=60, constructionHistory=False)
+  mc.select(transform, replace=True)
   return transform
 
 
@@ -77,13 +77,13 @@ def _assign_materials(transform, topology):
     sg = material.get_or_create(name)
     faces = ["%s.f[%d]" % (transform, i) for i in quad_idx]
     if faces:
-      cmds.sets(faces, edit=True, forceElement=sg)
+      mc.sets(faces, edit=True, forceElement=sg)
       assigned.update(quad_idx)
   # Any unassigned faces -> skin, so nothing stays on the default SG.
   leftover = [i for i in range(topology.num_quads) if i not in assigned]
   if leftover:
     sg = material.get_or_create("skin")
-    cmds.sets(["%s.f[%d]" % (transform, i) for i in leftover],
+    mc.sets(["%s.f[%d]" % (transform, i) for i in leftover],
               edit=True, forceElement=sg)
 
 

@@ -20,7 +20,7 @@ import logging
 import os
 
 import maya.api.OpenMaya as om2
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import build as _build
 from gnm_maya import meshio
@@ -60,7 +60,7 @@ def bake_rig(head, num_modes=0, semantic=True, name=None):
   blend = None
   with MayaProgress("Baking GNM rig", maximum=len(meta["targets"]) + 2) as prog:
     if meta["targets"]:
-      blend = cmds.blendShape(transform, name=name + "_blendShape",
+      blend = mc.blendShape(transform, name=name + "_blendShape",
                               frontOfChain=True)[0]
       for i, tgt in enumerate(meta["targets"]):
         prog.set(i, "Target %d/%d: %s" % (i + 1, len(meta["targets"]),
@@ -69,28 +69,28 @@ def bake_rig(head, num_modes=0, semantic=True, name=None):
         tgt_transform = _build.build_mesh(topo, tgt_verts,
                                           name="%s_tgt_%s" % (name,
                                                               tgt["name"]))
-        cmds.blendShape(blend, edit=True,
+        mc.blendShape(blend, edit=True,
                         target=(transform, i, tgt_transform, 1.0))
-        cmds.aliasAttr(tgt["name"], "%s.w[%d]" % (blend, i))
-        cmds.delete(tgt_transform)  # deltas stored on the blendShape node
+        mc.aliasAttr(tgt["name"], "%s.w[%d]" % (blend, i))
+        mc.delete(tgt_transform)  # deltas stored on the blendShape node
       logger.info("Baked %d blendshape targets on '%s'", len(meta["targets"]),
                   blend)
 
     # --- joints + skinning ---------------------------------------------------
     prog.set(len(meta["targets"]), "Building joints…")
     joints = []
-    cmds.select(clear=True)
+    mc.select(clear=True)
     for j, jname in enumerate(meta["joint_names"]):
       parent = meta["joint_parents"][j]
       if parent >= 0 and parent != j:
-        cmds.select(joints[parent], replace=True)
+        mc.select(joints[parent], replace=True)
       else:
-        cmds.select(clear=True)
-      joints.append(cmds.joint(name="%s_%s" % (name, jname),
+        mc.select(clear=True)
+      joints.append(mc.joint(name="%s_%s" % (name, jname),
                                position=meta["joint_positions"][j]))
 
     prog.set(len(meta["targets"]) + 1, "Binding skin weights…")
-    skin = cmds.skinCluster(joints[0], transform, name=name + "_skinCluster",
+    skin = mc.skinCluster(joints[0], transform, name=name + "_skinCluster",
                             toSelectedBones=False,
                             maximumInfluences=len(joints),
                             normalizeWeights=1)[0]
@@ -98,7 +98,7 @@ def bake_rig(head, num_modes=0, semantic=True, name=None):
                       len(meta["joint_names"]), meta["num_vertices"])
     logger.info("Baked skinCluster '%s' with %d joints", skin, len(joints))
 
-  cmds.select(transform, replace=True)
+  mc.select(transform, replace=True)
   return transform
 
 

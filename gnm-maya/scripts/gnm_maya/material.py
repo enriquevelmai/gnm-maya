@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import config
 
@@ -27,7 +27,7 @@ _DEFAULT = ((0.72, 0.74, 0.78), False)
 
 def _arnold_available():
   try:
-    return cmds.pluginInfo("mtoa", query=True, loaded=True)
+    return mc.pluginInfo("mtoa", query=True, loaded=True)
   except Exception:
     return False
 
@@ -37,20 +37,20 @@ def get_or_create(component):
   color, glossy = _PALETTE.get(component, _DEFAULT)
   shader_name = "gnm_%s_mat" % component
   sg_name = shader_name + "SG"
-  if cmds.objExists(sg_name):
+  if mc.objExists(sg_name):
     return sg_name
 
   if _arnold_available():
-    shader = cmds.shadingNode("aiStandardSurface", asShader=True, name=shader_name)
-    cmds.setAttr(shader + ".baseColor", *color, type="double3")
-    cmds.setAttr(shader + ".specular", 0.4 if glossy else 0.1)
-    cmds.setAttr(shader + ".specularRoughness", 0.15 if glossy else 0.55)
+    shader = mc.shadingNode("aiStandardSurface", asShader=True, name=shader_name)
+    mc.setAttr(shader + ".baseColor", *color, type="double3")
+    mc.setAttr(shader + ".specular", 0.4 if glossy else 0.1)
+    mc.setAttr(shader + ".specularRoughness", 0.15 if glossy else 0.55)
   else:
-    shader = cmds.shadingNode("lambert", asShader=True, name=shader_name)
-    cmds.setAttr(shader + ".color", *color, type="double3")
+    shader = mc.shadingNode("lambert", asShader=True, name=shader_name)
+    mc.setAttr(shader + ".color", *color, type="double3")
 
-  sg = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=sg_name)
-  cmds.connectAttr(shader + ".outColor", sg + ".surfaceShader", force=True)
+  sg = mc.sets(renderable=True, noSurfaceShader=True, empty=True, name=sg_name)
+  mc.connectAttr(shader + ".outColor", sg + ".surfaceShader", force=True)
   return sg
 
 
@@ -82,16 +82,16 @@ def bundled_texture_path():
 
 
 def _color_attr(shader):
-  return "baseColor" if cmds.nodeType(shader) == "aiStandardSurface" else "color"
+  return "baseColor" if mc.nodeType(shader) == "aiStandardSurface" else "color"
 
 
 def _shaders_of(transform):
-  shapes = cmds.listRelatives(transform, shapes=True, type="mesh",
+  shapes = mc.listRelatives(transform, shapes=True, type="mesh",
                               fullPath=True) or []
   shaders = []
   for shape in shapes:
-    for sg in set(cmds.listConnections(shape, type="shadingEngine") or []):
-      shaders += cmds.listConnections(sg + ".surfaceShader") or []
+    for sg in set(mc.listConnections(shape, type="shadingEngine") or []):
+      shaders += mc.listConnections(sg + ".surfaceShader") or []
   return list(dict.fromkeys(shaders))  # de-dup, keep order
 
 
@@ -101,23 +101,23 @@ def _skin_shaders(transform):
 
 
 def _ensure_file_node(image_path):
-  if not cmds.objExists(_TEX_FILE):
-    f = cmds.shadingNode("file", asTexture=True, isColorManaged=True,
+  if not mc.objExists(_TEX_FILE):
+    f = mc.shadingNode("file", asTexture=True, isColorManaged=True,
                          name=_TEX_FILE)
-    p2d = cmds.shadingNode("place2dTexture", asUtility=True, name=_TEX_P2D)
+    p2d = mc.shadingNode("place2dTexture", asUtility=True, name=_TEX_P2D)
     for src, dst in _P2D_LINKS:
-      cmds.connectAttr(p2d + "." + src, f + "." + dst, force=True)
-  cmds.setAttr(_TEX_FILE + ".fileTextureName", image_path, type="string")
+      mc.connectAttr(p2d + "." + src, f + "." + dst, force=True)
+  mc.setAttr(_TEX_FILE + ".fileTextureName", image_path, type="string")
   return _TEX_FILE
 
 
 def _ensure_tint_node(tint):
   """multiplyDivide that multiplies the texture by ``tint`` (so it's not B/W)."""
-  if not cmds.objExists(_TEX_TINT):
-    md = cmds.shadingNode("multiplyDivide", asUtility=True, name=_TEX_TINT)
-    cmds.setAttr(md + ".operation", 1)  # multiply
-    cmds.connectAttr(_TEX_FILE + ".outColor", md + ".input1", force=True)
-  cmds.setAttr(_TEX_TINT + ".input2", *tint, type="double3")
+  if not mc.objExists(_TEX_TINT):
+    md = mc.shadingNode("multiplyDivide", asUtility=True, name=_TEX_TINT)
+    mc.setAttr(md + ".operation", 1)  # multiply
+    mc.connectAttr(_TEX_FILE + ".outColor", md + ".input1", force=True)
+  mc.setAttr(_TEX_TINT + ".input2", *tint, type="double3")
   return _TEX_TINT
 
 
@@ -137,17 +137,17 @@ def apply_texture(transform, image_path=None, tint=None):
   _ensure_file_node(image_path)
   md = _ensure_tint_node(tint)
   for sh in _skin_shaders(transform):
-    cmds.connectAttr(md + ".output", sh + "." + _color_attr(sh), force=True)
+    mc.connectAttr(md + ".output", sh + "." + _color_attr(sh), force=True)
   return md
 
 
 def set_viewport_textured(enabled):
   """Turn textured display on/off in every model panel (so the map shows)."""
-  for panel in (cmds.getPanel(type="modelPanel") or []):
+  for panel in (mc.getPanel(type="modelPanel") or []):
     try:
-      cmds.modelEditor(panel, edit=True, displayTextures=bool(enabled))
+      mc.modelEditor(panel, edit=True, displayTextures=bool(enabled))
       if enabled:
-        cmds.modelEditor(panel, edit=True, displayAppearance="smoothShaded")
+        mc.modelEditor(panel, edit=True, displayAppearance="smoothShaded")
     except Exception:
       pass
 
@@ -157,10 +157,10 @@ def remove_texture(transform):
   skin_color = _PALETTE["skin"][0]
   for sh in _skin_shaders(transform):
     attr = sh + "." + _color_attr(sh)
-    for src in (cmds.listConnections(attr, plugs=True, source=True,
+    for src in (mc.listConnections(attr, plugs=True, source=True,
                                      destination=False) or []):
       if src.startswith(_TEX_TINT + ".") or src.startswith(_TEX_FILE + "."):
-        cmds.disconnectAttr(src, attr)
+        mc.disconnectAttr(src, attr)
     # Disconnecting a colour compound leaves its RGB children at 0 (black),
     # so explicitly restore the flat skin colour.
-    cmds.setAttr(attr, *skin_color, type="double3")
+    mc.setAttr(attr, *skin_color, type="double3")

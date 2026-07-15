@@ -47,7 +47,7 @@ def _bootstrap():
 
 _bootstrap()
 
-import maya.cmds as cmds
+from maya import cmds as mc
 import gnm_maya
 from gnm_maya import ui
 
@@ -63,7 +63,7 @@ def check(name, cond):
 
 
 def run():
-  cmds.file(new=True, force=True)
+  mc.file(new=True, force=True)
 
   panel = gnm_maya.show_ui()
   check("panel opens with a head", panel is not None and panel.head is not None)
@@ -71,7 +71,7 @@ def run():
     print("Aborting: head failed to build (see Script Editor for errors).")
     return panel
 
-  check("mesh created in scene", cmds.objExists(panel.head.transform))
+  check("mesh created in scene", mc.objExists(panel.head.transform))
   check("five tabs present", panel.tabs.count() == 5)
   check("identity sliders built", len(panel._id_sliders) > 0)
   check("expression sliders built", len(panel._expr_sliders) > 0)
@@ -151,13 +151,13 @@ def run():
   # Landmarks: 68 locators.
   from gnm_maya import landmarks as lmk
   grp = lmk.create_landmark_locators(panel.head)
-  n_loc = len(cmds.listRelatives(grp, children=True) or [])
+  n_loc = len(mc.listRelatives(grp, children=True) or [])
   check("68 landmark locators created", n_loc == 68)
 
   # Crowd: 3 heads at distinct positions.
   from gnm_maya import crowd
   made = crowd.generate_crowd(count=3, columns=3, spacing=0.6, seed=5)
-  xs = {round(cmds.xform(t, query=True, translation=True, worldSpace=True)[0], 3)
+  xs = {round(mc.xform(t, query=True, translation=True, worldSpace=True)[0], 3)
         for t in made}
   check("crowd creates 3 heads at distinct X", len(made) == 3 and len(xs) == 3)
 

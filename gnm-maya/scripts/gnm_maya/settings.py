@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 
-import maya.cmds as cmds
+from maya import cmds as mc
 
 logger = logging.getLogger(__name__)
 
@@ -21,29 +21,29 @@ _THUMB_KEY = "gnmThumbSize"
 
 def thumb_size():
   """Slider-thumbnail width in px (0 = hidden). Persisted across sessions."""
-  if cmds.optionVar(exists=_THUMB_KEY):
+  if mc.optionVar(exists=_THUMB_KEY):
     try:
-      return max(0, int(cmds.optionVar(query=_THUMB_KEY)))
+      return max(0, int(mc.optionVar(query=_THUMB_KEY)))
     except (TypeError, ValueError):
       pass
   return 56
 
 
 def set_thumb_size(px):
-  cmds.optionVar(intValue=(_THUMB_KEY, int(px)))
+  mc.optionVar(intValue=(_THUMB_KEY, int(px)))
   logger.info("%s = %s", _THUMB_KEY, px)
 
 
 def _get(key, default):
-  if cmds.optionVar(exists=key):
-    val = cmds.optionVar(query=key)
+  if mc.optionVar(exists=key):
+    val = mc.optionVar(query=key)
     if val and os.path.isdir(val):
       return val
   return default
 
 
 def _set(key, value):
-  cmds.optionVar(stringValue=(key, value))
+  mc.optionVar(stringValue=(key, value))
   logger.info("%s = %s", key, value)
 
 

@@ -6,97 +6,97 @@ silent in batch/mayapy (no UI) sessions.
 """
 
 import maya.utils
-import maya.cmds as cmds
+from maya import cmds as mc
 
 
 def build_menu():
-  if cmds.about(batch=True):
+  if mc.about(batch=True):
     return  # no UI in mayapy/batch
   gmain = "MayaWindow"
-  if not cmds.window(gmain, exists=True):
+  if not mc.window(gmain, exists=True):
     return
-  if cmds.menu("gnmMenu", exists=True):
-    cmds.deleteUI("gnmMenu")
-  cmds.menu("gnmMenu", label="GNM", parent=gmain, tearOff=True)
-  cmds.menuItem(
+  if mc.menu("gnmMenu", exists=True):
+    mc.deleteUI("gnmMenu")
+  mc.menu("gnmMenu", label="GNM", parent=gmain, tearOff=True)
+  mc.menuItem(
       label="GNM Head Panel...",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.show_ui()",
   )
-  cmds.menuItem(divider=True, parent="gnmMenu")
-  cmds.menuItem(
+  mc.menuItem(divider=True, parent="gnmMenu")
+  mc.menuItem(
       label="Quick: Random Head",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.generate_head()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Quick: Template Head",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.generate_template()",
   )
-  cmds.menuItem(divider=True, parent="gnmMenu")
-  cmds.menuItem(
+  mc.menuItem(divider=True, parent="gnmMenu")
+  mc.menuItem(
       label="Presets...",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.preset_browser()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Generate Crowd...",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.crowd_dialog()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Export Selected Rig (FBX)",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.export_selected_fbx()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Landmarks: Create",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.create_landmarks()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Landmarks: Update",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.update_landmarks()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Landmarks: Toggle L/R Mirror",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.toggle_landmark_mirror()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Landmarks: Fit Head to Locators",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.fit_head_to_landmarks()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Shape Gallery (min/max images)",
       parent="gnmMenu",
       command="from gnm_maya import ui_tools; ui_tools.open_shape_gallery()",
   )
-  cmds.menuItem(divider=True, parent="gnmMenu")
-  cmds.menuItem(
+  mc.menuItem(divider=True, parent="gnmMenu")
+  mc.menuItem(
       label="Add Shelf Button",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.add_shelf_button()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Check for GNM Model Updates...",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.check_updates()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Check for gnm-maya Tool Updates...",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.check_tool_updates()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Run GUI Test",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.run_gui_test()",
   )
-  cmds.menuItem(
+  mc.menuItem(
       label="Licenses...",
       parent="gnmMenu",
       command="import gnm_maya; gnm_maya.show_licenses()",

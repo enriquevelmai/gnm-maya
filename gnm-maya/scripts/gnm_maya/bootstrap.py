@@ -165,7 +165,7 @@ def ensure_all(status=lambda msg: None):
 
 def ensure_all_with_dialog():
   """Maya-facing: confirm + bootstrap behind a progress dialog."""
-  import maya.cmds as cmds
+  from maya import cmds as mc
   missing = []
   if not runtime_available():
     missing.append("portable Python runtime (~70 MB download)")
@@ -175,7 +175,7 @@ def ensure_all_with_dialog():
     missing.append("shape images (rendered locally, ~5 min one time)")
   if not missing:
     return True
-  ans = cmds.confirmDialog(
+  ans = mc.confirmDialog(
       title="GNM first-run setup",
       message="GNM needs to download:\n- %s\n\nEverything installs inside "
               "the module folder. Continue?" % "\n- ".join(missing),
@@ -198,5 +198,5 @@ def ensure_all_with_dialog():
     logger.exception("bootstrap failed")
     ok = False
     msg = "Setup failed:\n%s" % e
-  cmds.confirmDialog(title="GNM first-run setup", message=msg, button=["OK"])
+  mc.confirmDialog(title="GNM first-run setup", message=msg, button=["OK"])
   return ok

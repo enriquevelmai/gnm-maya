@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import random
 
-import maya.cmds as cmds
+from maya import cmds as mc
 
 from gnm_maya import api
 from gnm_maya import rig as _rig
@@ -63,19 +63,19 @@ def _generate_crowd_loop(count, columns, spacing, identity_scale,
 
     if bake:
       rig_transform = _rig.bake_rig(h)
-      cmds.delete(h.transform)
+      mc.delete(h.transform)
       # Group the mesh with its skeleton and move the group. The skinCluster
       # already moves the deformed points when the joints move, so the mesh
       # transform must NOT also inherit the group's translation (that would
       # double-transform the skinned vertices).
-      group = cmds.group(
+      group = mc.group(
           [rig_transform] + _root_joints(rig_transform),
           name=rig_transform + "_grp")
-      cmds.setAttr(rig_transform + ".inheritsTransform", 0)
-      cmds.xform(group, translation=position)
+      mc.setAttr(rig_transform + ".inheritsTransform", 0)
+      mc.xform(group, translation=position)
       transforms.append(rig_transform)
     else:
-      cmds.xform(h.transform, translation=position)
+      mc.xform(h.transform, translation=position)
       transforms.append(h.transform)
 
     logger.info("Crowd head %d/%d -> '%s' at %s", i + 1, count,
@@ -87,10 +87,10 @@ def _root_joints(rig_transform):
   """Top-level joints of a baked rig (named '<rig>_<joint>' by bake_rig)."""
   prefix = rig_transform + "_"
   roots = []
-  for j in cmds.ls(type="joint") or []:
+  for j in mc.ls(type="joint") or []:
     if not j.startswith(prefix):
       continue
-    parent = cmds.listRelatives(j, parent=True, type="joint")
+    parent = mc.listRelatives(j, parent=True, type="joint")
     if not parent:
       roots.append(j)
   return roots
