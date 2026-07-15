@@ -924,18 +924,32 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Error: %s" % e)
 
 
-def _prewarm_worker(parent):
-  """Start the model worker (the ~1s cost) behind a progress dialog so the
-  first panel open doesn't look frozen. Returns without raising on failure."""
-  import threading
-  from gnm_maya.core import worker as _worker
+def _open_progress(parent, text):
+  """A busy progress dialog, force-painted so it never shows up blank/white.
 
-  dlg = QtWidgets.QProgressDialog("Loading GNM model…", None, 0, 0, parent)
+  QProgressDialog only paints once the event loop spins; on a cold first load
+  the heavy work starts immediately after show(), so we pump the loop and
+  repaint explicitly before returning.
+  """
+  dlg = QtWidgets.QProgressDialog(text, None, 0, 0, parent)
   dlg.setWindowTitle("GNM")
   dlg.setWindowModality(QtCore.Qt.WindowModal)
   dlg.setMinimumDuration(0)
+  dlg.setMinimumWidth(320)
   dlg.setCancelButton(None)
   dlg.show()
+  for _ in range(3):  # let show/layout/paint events land before heavy work
+    QtWidgets.QApplication.processEvents()
+  dlg.repaint()
+  return dlg
+
+
+def _prewarm_worker(dlg):
+  """Start the model worker (the ~1s cost) while ``dlg`` keeps animating.
+
+  Returns without raising on failure (the panel build surfaces errors)."""
+  import threading
+  from gnm_maya.core import worker as _worker
 
   done = {"ok": False, "err": None}
 
@@ -951,7 +965,6 @@ def _prewarm_worker(parent):
   while th.is_alive():           # keep the dialog animating + Maya responsive
     th.join(0.03)
     QtWidgets.QApplication.processEvents()
-  dlg.close()
   if done["err"]:
     logger.warning("worker pre-warm failed: %s", done["err"])
 
@@ -1039,10 +1052,18 @@ def show():
       return None
   _check_updates_async()       # courtesy check for the GNM model; user chooses
   _check_tool_updates_async()  # courtesy check for this tool itself
-  _prewarm_worker(parent)
-  heads = find_heads(selected_only=True) or find_heads()
-  target = heads[0] if heads else None
-  _WINDOW = GnmPanel(parent=parent, adopt_transform=target)
+  # One progress dialog spans BOTH slow phases (model load + panel build) so
+  # the first open never shows a blank white window.
+  dlg = _open_progress(parent, "Loading GNM model…")
+  try:
+    _prewarm_worker(dlg)
+    heads = find_heads(selected_only=True) or find_heads()
+    target = heads[0] if heads else None
+    dlg.setLabelText("Building panel…")
+    QtWidgets.QApplication.processEvents()
+    _WINDOW = GnmPanel(parent=parent, adopt_transform=target)
+  finally:
+    dlg.close()
   _WINDOW.show()
   logger.info("Opened GNM panel (%s)",
               "adopted %s" % target if target else "new head")

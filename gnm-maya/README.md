@@ -141,6 +141,33 @@ import gnm_maya; gnm_maya.add_shelf_button()
 
 Actions are logged to the Script Editor via the `gnm_maya` logger.
 
+## Architecture
+
+The Maya-side package (`scripts/gnm_maya/`) is organized in MVC-style layers,
+top-down (each layer only reaches downward; Maya code uses the
+`from maya import cmds as mc` convention throughout):
+
+```
+gnm_maya/
+  __init__.py     public facade: generate_head(), show_ui(), check_updates()…
+  ui/             VIEW + CONTROLLER (Qt): panel, widgets, tools (dialogs),
+                  progress, shelf, licenses
+  scene/          VIEW (Maya scene): build (mesh), material, rig, landmarks,
+                  crowd, export_fbx, presets
+  core/           MODEL: head (GnmHead coefficient state), worker (resident
+                  model subprocess), meshio (pure-python readers), config,
+                  settings
+  services/       infrastructure: bootstrap (first-run downloads), updater
+                  (GNM model), tool_updater (this tool), fitting_deps
+```
+
+The heavy GNM model itself never runs in Maya: `core.worker` talks over
+stdin/stdout to `external/server.py`, which runs inside the downloaded
+portable runtime (`runtime/`) with numpy + the model weights. One deliberate
+MVC exception, documented in `core/__init__.py`: `core.head` pushes evaluated
+vertices into the scene via `scene.build` so all edit paths (sliders,
+describe, fitting, self-heal) share a single update funnel.
+
 ### How the Identity / Expression sliders work (PCA-style basis)
 
 GNM's Identity (253) and Expression (383) controls are a **statistical shape

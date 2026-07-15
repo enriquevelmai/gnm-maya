@@ -16,8 +16,8 @@ you can instead just run:
     import gnm_maya; gnm_maya.show_ui()
 
 It creates a new scene, opens the panel, drives sliders/randomize/reset/
-symmetry/show-all/licenses programmatically, prints PASS/FAIL for each, and
-leaves the panel open so you can inspect it by hand.
+symmetry/show-all/licenses programmatically, prints PASS/FAIL for each, then
+closes the windows it opened and deletes every node it created.
 """
 
 import os
@@ -113,9 +113,9 @@ def run():
   check("Reset zeros expression",
         all(abs(x) < 1e-6 for x in panel.head.expression))
 
-  # Licenses viewer (non-modal).
-  dlg = gnm_maya.show_licenses()
-  check("licenses dialog opens", dlg is not None)
+  # Licenses viewer (non-modal). Kept for closing during cleanup.
+  lic_dlg = gnm_maya.show_licenses()
+  check("licenses dialog opens", lic_dlg is not None)
 
   # --- newer features -------------------------------------------------------
 
@@ -171,12 +171,32 @@ def run():
   else:
     print("[skip] shape gallery not generated (docs/shapes)")
 
+  # --- cleanup: close windows and delete everything the test created --------
+  try:
+    if lic_dlg is not None:
+      lic_dlg.close()
+      lic_dlg.deleteLater()
+    panel.close()
+    panel.deleteLater()
+    from gnm_maya.core import worker
+    worker.shutdown_worker()
+    to_delete = [t for t in ([panel.head.transform, grp] + list(made))
+                 if t and mc.objExists(t)]
+    # Crowd heads may have their own landmark-free names; also sweep leftovers.
+    for pattern in ("gnm_head*", "gnm_crowd_*", "*_landmarks"):
+      to_delete += [t for t in (mc.ls(pattern, type="transform") or [])
+                    if t not in to_delete]
+    if to_delete:
+      mc.delete(to_delete)
+    check("cleanup: windows closed + created items deleted",
+          not (mc.ls("gnm_head*") or mc.ls("gnm_crowd_*")))
+  except Exception as e:
+    check("cleanup: windows closed + created items deleted (%s)" % e, False)
+
   npass = sum(1 for _, ok in _results if ok)
   print("\n=== GNM GUI SMOKE: %d/%d checks passed ===" % (npass, len(_results)))
-  print("Panel left open. Inspect by hand: tabs, m0..mN slider labels + "
-        "tooltips, the 'Show all N' buttons, per-tab Randomize/Reset, the "
-        "Symmetry toggle, and the ⓘ info button.")
-  return panel
+  print("Scene cleaned up (test windows closed, created nodes deleted).")
+  return None
 
 
 # Auto-run when executed via exec(open(...).read()) or Execute All.
