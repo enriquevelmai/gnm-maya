@@ -29,7 +29,7 @@ import tempfile
 import urllib.request
 import zipfile
 
-from gnm_maya import config
+from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ def download_and_install(timeout=180):
                "sha": latest["sha"], "date": latest["date"]}, f, indent=2)
 
   try:
-    from gnm_maya import worker
+    from gnm_maya.core import worker
     worker.shutdown_worker()
   except Exception:
     pass
@@ -236,7 +236,7 @@ def _post_update_dialog(latest):
   restart is required — not just recommended — for the update to apply.
   """
   from maya import cmds as mc
-  from gnm_maya import updater  # reuse restart_maya (identical mechanism)
+  from gnm_maya.services import updater  # reuse restart_maya
 
   msg = (
       "gnm-maya updated to %s (%s).\n\n"

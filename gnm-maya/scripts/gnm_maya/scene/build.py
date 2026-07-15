@@ -8,7 +8,7 @@ from __future__ import annotations
 import maya.api.OpenMaya as om2
 from maya import cmds as mc
 
-from gnm_maya import material
+from gnm_maya.scene import material
 
 
 def _points(verts_flat):

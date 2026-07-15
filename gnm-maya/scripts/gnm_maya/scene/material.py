@@ -11,7 +11,7 @@ import os
 
 from maya import cmds as mc
 
-from gnm_maya import config
+from gnm_maya.core import config
 
 # name -> (linear-ish RGB, is_glossy)
 _PALETTE = {

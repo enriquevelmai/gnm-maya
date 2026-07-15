@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import os
 
-# .../<module>/scripts/gnm_maya/config.py  ->  <module>
+# .../<module>/scripts/gnm_maya/core/config.py  ->  <module>
 _HERE = os.path.dirname(os.path.abspath(__file__))
-MODULE_ROOT = os.path.normpath(os.path.join(_HERE, "..", ".."))
+MODULE_ROOT = os.path.normpath(os.path.join(_HERE, "..", "..", ".."))
 
 EXTERNAL_DIR = os.path.join(MODULE_ROOT, "external")
 GENERATE_SCRIPT = os.path.join(EXTERNAL_DIR, "generate.py")

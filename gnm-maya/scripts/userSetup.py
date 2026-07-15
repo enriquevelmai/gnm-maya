@@ -38,42 +38,42 @@ def build_menu():
   mc.menuItem(
       label="Presets...",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.preset_browser()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.preset_browser()",
   )
   mc.menuItem(
       label="Generate Crowd...",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.crowd_dialog()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.crowd_dialog()",
   )
   mc.menuItem(
       label="Export Selected Rig (FBX)",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.export_selected_fbx()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.export_selected_fbx()",
   )
   mc.menuItem(
       label="Landmarks: Create",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.create_landmarks()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.create_landmarks()",
   )
   mc.menuItem(
       label="Landmarks: Update",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.update_landmarks()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.update_landmarks()",
   )
   mc.menuItem(
       label="Landmarks: Toggle L/R Mirror",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.toggle_landmark_mirror()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.toggle_landmark_mirror()",
   )
   mc.menuItem(
       label="Landmarks: Fit Head to Locators",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.fit_head_to_landmarks()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.fit_head_to_landmarks()",
   )
   mc.menuItem(
       label="Shape Gallery (min/max images)",
       parent="gnmMenu",
-      command="from gnm_maya import ui_tools; ui_tools.open_shape_gallery()",
+      command="from gnm_maya.ui import tools as ui_tools; ui_tools.open_shape_gallery()",
   )
   mc.menuItem(divider=True, parent="gnmMenu")
   mc.menuItem(

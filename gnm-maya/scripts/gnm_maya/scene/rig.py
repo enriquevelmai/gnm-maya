@@ -22,8 +22,8 @@ import os
 import maya.api.OpenMaya as om2
 from maya import cmds as mc
 
-from gnm_maya import build as _build
-from gnm_maya import meshio
+from gnm_maya.scene import build as _build
+from gnm_maya.core import meshio
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def bake_rig(head, num_modes=0, semantic=True, name=None):
   transform = _build.build_mesh(topo, neutral, name=name)
 
   # --- blendShape with one target per expression -----------------------------
-  from gnm_maya.progress import MayaProgress
+  from gnm_maya.ui.progress import MayaProgress
   blend = None
   with MayaProgress("Baking GNM rig", maximum=len(meta["targets"]) + 2) as prog:
     if meta["targets"]:

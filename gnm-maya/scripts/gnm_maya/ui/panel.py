@@ -20,8 +20,8 @@ except ImportError:  # Maya 2022-2024
 from maya import OpenMayaUI as omui
 from maya import cmds as mc
 
-from gnm_maya import api
-from gnm_maya import config
+from gnm_maya.core.head import GnmHead, find_heads
+from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +66,9 @@ _WINDOW = None
 _OBJECT_NAME = "gnmHeadPanel"
 _TITLE = "GNM Head (Generative aNthropometric Model)"
 
-MAX_PER_GROUP = 12      # sliders shown per body-part group before "Show all"
-COEFF_RANGE = 300       # +/- 3.0 sigma for identity/expression
-POSE_RANGE = 157        # +/- ~90 deg (radians * 100)
-TRANS_RANGE = 500       # +/- 5.0 units
-
+from gnm_maya.ui.widgets import (TickSlider, VSlider, CoeffGroup,
+                                 MAX_PER_GROUP, COEFF_RANGE,
+                                 POSE_RANGE, TRANS_RANGE)
 # Explains what the sliders are (surfaced via the "?" info button and tooltips).
 PCA_INFO = (
     "GNM's Identity and Expression controls are a statistical shape basis, "
@@ -92,184 +90,6 @@ def maya_main_window():
   return wrapInstance(int(ptr), QtWidgets.QWidget) if ptr else None
 
 
-class _TickSlider(QtWidgets.QSlider):
-  """Vertical slider that resets to zero on double-click."""
-
-  def mouseDoubleClickEvent(self, event):
-    self.setValue(0)  # fires valueChanged -> callback
-    super(_TickSlider, self).mouseDoubleClickEvent(event)
-
-
-class _VSlider(QtWidgets.QWidget):
-  """A labeled vertical slider: optional shape thumbnail + title on top,
-  value below, live callback. Double-click the slider to return it to 0.
-  """
-
-  def __init__(self, title, rng, divisor, decimals, on_change, tooltip="",
-               icon_path=None, icon_path_min=None):
-    super(_VSlider, self).__init__()
-    self._div = float(divisor)
-    self._dec = decimals
-    self._on_change = on_change
-
-    lay = QtWidgets.QVBoxLayout(self)
-    lay.setContentsMargins(2, 2, 2, 2)
-    lay.setSpacing(2)
-
-    # Range visuals: MAX image above the slider (drag up -> +3 goes there),
-    # MIN image below it (drag down -> -3). Built empty; sized by
-    # set_icon_size so the panel can live-resize/hide them.
-    self._icon_path = icon_path        # max (+3)
-    self._icon_path_min = icon_path_min
-    self._pic = None                   # max, above
-    self._pic_min = None               # min, below
-    if icon_path:
-      self._pic = QtWidgets.QLabel()
-      self._pic.setAlignment(QtCore.Qt.AlignHCenter)
-      lay.addWidget(self._pic)
-
-    self.title = QtWidgets.QLabel(title)
-    self.title.setAlignment(QtCore.Qt.AlignHCenter)
-    self.s = _TickSlider(QtCore.Qt.Vertical)
-    self.s.setRange(-rng, rng)
-    self.s.setValue(0)
-    self.s.setFixedHeight(130)
-    self.s.setTickPosition(QtWidgets.QSlider.TicksBothSides)
-    self.s.setTickInterval(rng)
-    self.s.setPageStep(max(1, rng // 10))
-    self.val = QtWidgets.QLabel("0." + "0" * decimals)
-    self.val.setAlignment(QtCore.Qt.AlignHCenter)
-
-    if tooltip:
-      if tooltip.lstrip().startswith("<"):  # rich-text tooltip, hint included
-        self.setToolTip(tooltip)
-      else:
-        self.setToolTip(tooltip + "\n(double-click slider to reset)")
-
-    lay.addWidget(self.title)
-    lay.addWidget(self.s, 0, QtCore.Qt.AlignHCenter)
-    if icon_path_min:
-      self._pic_min = QtWidgets.QLabel()
-      self._pic_min.setAlignment(QtCore.Qt.AlignHCenter)
-      lay.addWidget(self._pic_min)
-    lay.addWidget(self.val)
-
-    self.s.valueChanged.connect(self._changed)
-
-  def _fmt(self, fv):
-    return ("%." + str(self._dec) + "f") % fv
-
-  def _changed(self, v):
-    fv = v / self._div
-    self.val.setText(self._fmt(fv))
-    self._on_change(fv)
-
-  def set_value_silent(self, fv):
-    self.s.blockSignals(True)
-    self.s.setValue(int(round(fv * self._div)))
-    self.val.setText(self._fmt(fv))
-    self.s.blockSignals(False)
-
-  def set_icon_size(self, px):
-    """Resize (or hide, px=0) the min/max shape thumbnails."""
-    for pic, path in ((self._pic, self._icon_path),
-                      (self._pic_min, self._icon_path_min)):
-      if not pic:
-        continue
-      if px <= 0 or not path:
-        pic.setVisible(False)
-        continue
-      pm = QtGui.QPixmap(path)
-      if pm.isNull():
-        pic.setVisible(False)
-        continue
-      pic.setPixmap(pm.scaledToWidth(int(px), QtCore.Qt.SmoothTransformation))
-      pic.setVisible(True)
-
-  def reset(self):
-    self.set_value_silent(0.0)
-
-
-class _CoeffGroup(QtWidgets.QGroupBox):
-  """One body-part group of coefficient sliders with lazy 'Show all' expand.
-
-  Sliders wrap into a grid (MAX_PER_GROUP columns) so expanded groups read as a
-  block, not one very wide row.
-  """
-
-  def __init__(self, panel, kind, label, start, end):
-    super(_CoeffGroup, self).__init__(label)
-    self.panel = panel
-    self.kind = kind
-    self.start = start
-    self.end = end
-    self.total = end - start + 1
-    self.shown = min(MAX_PER_GROUP, self.total)
-    self._cols = MAX_PER_GROUP
-    self._widgets = []        # every slider in this group, in order
-    self._extra_built = False
-    self._expanded = False
-
-    self.setToolTip("%d modes, ordered by importance (m0 = largest variation)."
-                    % self.total)
-
-    v = QtWidgets.QVBoxLayout(self)
-
-    # Buttons at the TOP so they stay visible when the grid expands downward.
-    btns = QtWidgets.QHBoxLayout()
-    if self.total > self.shown:
-      self.toggle_btn = QtWidgets.QPushButton("Show all %d ▸" % self.total)
-      self.toggle_btn.setToolTip(
-          "Show every mode in this group (%d total)." % self.total)
-      self.toggle_btn.clicked.connect(self._toggle)
-      btns.addWidget(self.toggle_btn)
-    else:
-      self.toggle_btn = None
-    reset_btn = QtWidgets.QPushButton("Reset")
-    reset_btn.clicked.connect(self.reset)
-    btns.addWidget(reset_btn)
-    btns.addStretch(1)
-    v.addLayout(btns)
-
-    # Sliders live in their own grid so the buttons above never get pushed off.
-    self._grid = QtWidgets.QGridLayout()
-    self._grid.setHorizontalSpacing(2)
-    self._grid.setVerticalSpacing(4)
-    v.addLayout(self._grid)
-    v.addStretch(1)  # keep the grid packed at the top of the group
-    for k in range(self.shown):
-      self._add_slider(start + k)
-
-  def _add_slider(self, idx):
-    k = len(self._widgets)
-    w = self.panel._make_coeff_slider(
-        self.kind, idx, title="m%d" % (idx - self.start))
-    self._grid.addWidget(w, k // self._cols, k % self._cols)
-    self._widgets.append(w)
-
-  def _all_sliders(self):
-    return list(self._widgets)
-
-  def _toggle(self):
-    if not self._extra_built:
-      for idx in range(self.start + self.shown, self.end + 1):
-        self._add_slider(idx)
-      self._extra_built = True
-      self._expanded = True
-      self.panel._sync_sliders_from_head()  # fill freshly-built sliders
-    else:
-      self._expanded = not self._expanded
-      for w in self._widgets[self.shown:]:
-        w.setVisible(self._expanded)
-    self.toggle_btn.setText(
-        ("Show first %d ◂" % self.shown) if self._expanded
-        else ("Show all %d ▸" % self.total))
-
-  def reset(self):
-    for w in self._widgets:
-      w.reset()
-    self.panel._clear_range(self.kind, self.start, self.end)
-
 
 class GnmPanel(QtWidgets.QWidget):
 
@@ -285,10 +105,10 @@ class GnmPanel(QtWidgets.QWidget):
     self.head = None
     self._symmetry = False
     self._sliders = []                 # all, for Reset All
-    self._id_sliders = {}              # identity coeff index -> _VSlider
-    self._expr_sliders = {}            # expression coeff index -> _VSlider
-    self._pose_sliders = {}            # (joint, axis) -> _VSlider
-    self._trans_sliders = {}           # axis -> _VSlider
+    self._id_sliders = {}              # identity coeff index -> VSlider
+    self._expr_sliders = {}            # expression coeff index -> VSlider
+    self._pose_sliders = {}            # (joint, axis) -> VSlider
+    self._trans_sliders = {}           # axis -> VSlider
 
     # Coalesce rapid slider edits: stage the coefficient immediately (cheap),
     # repaint the mesh at most every REFRESH_MS so drags stay responsive.
@@ -300,7 +120,7 @@ class GnmPanel(QtWidgets.QWidget):
     self._blend_iden_seed = 0
     self._gallery = _load_gallery()  # pre-rendered min/max shape thumbnails
     self._coeff_meta = []            # (slider, kind, idx) for live thumb resize
-    from gnm_maya import settings as _settings
+    from gnm_maya.core import settings as _settings
     self._thumb_px = _settings.thumb_size()
 
     # --- user-modifiable widgets (created here, laid out in populate_ui) ---
@@ -349,10 +169,10 @@ class GnmPanel(QtWidgets.QWidget):
 
     try:
       if adopt_transform and mc.objExists(adopt_transform):
-        self.head = api.GnmHead.adopt(adopt_transform)
+        self.head = GnmHead.adopt(adopt_transform)
         self.status.setText("Adopted: %s" % self.head.transform)
       else:
-        self.head = api.GnmHead()
+        self.head = GnmHead()
         self.status.setText("Head: %s" % self.head.transform)
     except Exception as e:
       logger.exception("Failed to build GNM head")
@@ -438,7 +258,7 @@ class GnmPanel(QtWidgets.QWidget):
   def _make_coeff_slider(self, kind, idx, title):
     px = self._thumb_px
     icon_max, icon_min, tip = self._slider_visuals(kind, idx, px)
-    w = _VSlider(title, COEFF_RANGE, 100.0, 1,
+    w = VSlider(title, COEFF_RANGE, 100.0, 1,
                  lambda v, i=idx, kd=kind: self._on_coeff(kd, i, v),
                  tooltip=tip, icon_path=icon_max, icon_path_min=icon_min)
     w.set_icon_size(px)
@@ -721,7 +541,7 @@ class GnmPanel(QtWidgets.QWidget):
     row = QtWidgets.QHBoxLayout(host)
     row.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
     for (label, start, end) in groups:
-      row.addWidget(_CoeffGroup(self, kind, label, start, end))
+      row.addWidget(CoeffGroup(self, kind, label, start, end))
     v.addWidget(self._scroll(host), 1)
     return container
 
@@ -742,7 +562,7 @@ class GnmPanel(QtWidgets.QWidget):
       box = QtWidgets.QGroupBox(jname)
       bl = QtWidgets.QHBoxLayout(box)
       for axis, aname in enumerate(("rx", "ry", "rz")):
-        w = _VSlider(aname, POSE_RANGE, 100.0, 2,
+        w = VSlider(aname, POSE_RANGE, 100.0, 2,
                      lambda v, jj=j, ax=axis: self._on_pose(jj, ax, v),
                      tooltip="%s %s (radians)" % (jname, aname))
         bl.addWidget(w)
@@ -766,7 +586,7 @@ class GnmPanel(QtWidgets.QWidget):
     box = QtWidgets.QGroupBox("global")
     bl = QtWidgets.QHBoxLayout(box)
     for axis, aname in enumerate(("tx", "ty", "tz")):
-      w = _VSlider(aname, TRANS_RANGE, 100.0, 2,
+      w = VSlider(aname, TRANS_RANGE, 100.0, 2,
                    lambda v, ax=axis: self._on_translation(ax, v),
                    tooltip="Global translation %s" % aname)
       bl.addWidget(w)
@@ -943,7 +763,7 @@ class GnmPanel(QtWidgets.QWidget):
   def _on_texture_toggled(self, on):
     if not self.head:
       return
-    from gnm_maya import material
+    from gnm_maya.scene import material
     try:
       if on:
         f = material.apply_texture(self.head.transform, self._texture_path)
@@ -962,7 +782,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.tex_chk.blockSignals(False)
 
   def _browse_texture(self):
-    from gnm_maya import settings
+    from gnm_maya.core import settings
     path, _ = QtWidgets.QFileDialog.getOpenFileName(
         self, "Choose a texture image", settings.last_photo_dir(),
         "Images (*.png *.jpg *.jpeg *.tif *.tiff *.exr)")
@@ -980,7 +800,7 @@ class GnmPanel(QtWidgets.QWidget):
 
   def _on_thumb_size(self, _index):
     """Live-resize every slider thumbnail (and its tooltip images)."""
-    from gnm_maya import settings
+    from gnm_maya.core import settings
     px = self.thumb_combo.currentData()
     self._thumb_px = int(px)
     settings.set_thumb_size(self._thumb_px)
@@ -1026,7 +846,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Nothing to bake (no targets selected).")
       return
 
-    from gnm_maya import rig
+    from gnm_maya.scene import rig
     try:
       n_targets = (20 if semantic else 0) + num_modes * max(1, len(groups))
       self._busy_status("Baking rig (~%d targets + joints)…" % n_targets)
@@ -1043,11 +863,11 @@ class GnmPanel(QtWidgets.QWidget):
   def _fit_photo(self):
     if not self.head:
       return
-    from gnm_maya import fitting_deps
+    from gnm_maya.services import fitting_deps
     if not fitting_deps.available():
       if not fitting_deps.install_with_dialog():
         return
-    from gnm_maya import settings
+    from gnm_maya.core import settings
     path, _ = QtWidgets.QFileDialog.getOpenFileName(
         self, "Choose a face photo", settings.last_photo_dir(),
         "Images (*.png *.jpg *.jpeg *.bmp *.webp)")
@@ -1108,7 +928,7 @@ def _prewarm_worker(parent):
   """Start the model worker (the ~1s cost) behind a progress dialog so the
   first panel open doesn't look frozen. Returns without raising on failure."""
   import threading
-  from gnm_maya import worker as _worker
+  from gnm_maya.core import worker as _worker
 
   dlg = QtWidgets.QProgressDialog("Loading GNM model…", None, 0, 0, parent)
   dlg.setWindowTitle("GNM")
@@ -1193,14 +1013,14 @@ def _check_updates_async_generic(mod, display_name, menu_hint):
 
 def _check_updates_async():
   """Courtesy check for the vendored GNM model (external/gnm_repo)."""
-  from gnm_maya import updater
+  from gnm_maya.services import updater
   _check_updates_async_generic(updater, "google/GNM",
                                "GNM > Check for GNM Model Updates")
 
 
 def _check_tool_updates_async():
   """Courtesy check for this tool itself (gnm-maya)."""
-  from gnm_maya import tool_updater
+  from gnm_maya.services import tool_updater
   _check_updates_async_generic(tool_updater, "gnm-maya tool",
                                "GNM > Check for gnm-maya Tool Updates")
 
@@ -1213,14 +1033,14 @@ def show():
       w.close()
       w.deleteLater()
   # First run: the runtime and the GNM repo are downloaded, not shipped.
-  from gnm_maya import bootstrap
+  from gnm_maya.services import bootstrap
   if not bootstrap.all_available():
     if not bootstrap.ensure_all_with_dialog():
       return None
   _check_updates_async()       # courtesy check for the GNM model; user chooses
   _check_tool_updates_async()  # courtesy check for this tool itself
   _prewarm_worker(parent)
-  heads = api.find_heads(selected_only=True) or api.find_heads()
+  heads = find_heads(selected_only=True) or find_heads()
   target = heads[0] if heads else None
   _WINDOW = GnmPanel(parent=parent, adopt_transform=target)
   _WINDOW.show()

@@ -15,7 +15,7 @@ import maya.mel as mel
 
 logger = logging.getLogger(__name__)
 
-from gnm_maya import settings
+from gnm_maya.core import settings
 
 
 def _exports_dir():

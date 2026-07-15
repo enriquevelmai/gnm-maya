@@ -10,7 +10,7 @@ import glob
 import logging
 import os
 
-from gnm_maya import config
+from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ def show(parent=None):
     from PySide2 import QtWidgets
 
   if parent is None:
-    from gnm_maya import ui
+    from gnm_maya.ui import panel as ui
     parent = ui.maya_main_window()
 
   items = collect()

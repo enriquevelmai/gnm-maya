@@ -14,7 +14,7 @@ Public entry points:
 
 import logging as _logging
 
-from gnm_maya.api import generate_head, generate_template
+from gnm_maya.core.head import generate_head, generate_template
 
 __all__ = ["generate_head", "generate_template", "show_ui", "show_licenses",
            "add_shelf_button", "check_updates", "check_tool_updates",
@@ -40,26 +40,26 @@ logger = _configure_logger()
 
 def show_ui():
   """Lazy import so importing the package never requires Qt."""
-  from gnm_maya import ui
+  from gnm_maya.ui import panel as ui
   return ui.show()
 
 
 def show_licenses():
   """Open a dialog listing this module's and all bundled licenses."""
-  from gnm_maya import licenses
+  from gnm_maya.ui import licenses
   return licenses.show()
 
 
 def add_shelf_button(shelf=None):
   """Add a 'GNM Head' button to the active (or named) Maya shelf."""
-  from gnm_maya import shelf as _shelf
+  from gnm_maya.ui import shelf as _shelf
   return _shelf.add_shelf_button(shelf)
 
 
 def check_updates():
   """Check google/GNM (the vendored model) for updates and offer to
   download them."""
-  from gnm_maya import updater
+  from gnm_maya.services import updater
   return updater.show_update_dialog()
 
 
@@ -69,14 +69,14 @@ def check_tool_updates():
   Unlike check_updates() (the GNM model), an update here changes the tool's
   own code, so applying it requires restarting Maya afterwards.
   """
-  from gnm_maya import tool_updater
+  from gnm_maya.services import tool_updater
   return tool_updater.show_update_dialog()
 
 
 def run_gui_test():
   """Execute the GUI smoke test in this Maya session (opens the panel)."""
   import os
-  from gnm_maya import config
+  from gnm_maya.core import config
   path = os.path.join(config.MODULE_ROOT, "tests", "gui_smoke_test.py")
   with open(path) as f:
     code = f.read()

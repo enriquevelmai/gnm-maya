@@ -12,8 +12,8 @@ import subprocess
 import tempfile
 import threading
 
-from gnm_maya import config
-from gnm_maya import meshio
+from gnm_maya.core import config
+from gnm_maya.core import meshio
 
 _WORKER = None
 _LOCK = threading.Lock()

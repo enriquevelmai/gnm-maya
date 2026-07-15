@@ -117,7 +117,7 @@ def onMayaDroppedPythonFile(*args):
     # First-run bootstrap: the repo ships code only; the portable runtime and
     # the GNM model repo are downloaded on demand (into the installed copy).
     try:
-      from gnm_maya import bootstrap
+      from gnm_maya.services import bootstrap
       if not bootstrap.all_available():
         bootstrap.ensure_all_with_dialog()
     except Exception:

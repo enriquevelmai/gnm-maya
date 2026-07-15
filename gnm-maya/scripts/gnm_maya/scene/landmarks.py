@@ -13,7 +13,7 @@ import os
 
 from maya import cmds as mc
 
-from gnm_maya import config
+from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
 

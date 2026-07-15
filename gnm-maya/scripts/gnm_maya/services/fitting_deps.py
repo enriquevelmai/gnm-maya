@@ -14,7 +14,7 @@ import logging
 import os
 import subprocess
 
-from gnm_maya import config
+from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def install():
   logger.info("Photo-fitting deps installed.")
   # The resident worker must restart to see the new packages.
   try:
-    from gnm_maya import worker
+    from gnm_maya.core import worker
     worker.shutdown_worker()
   except Exception:
     pass
@@ -71,7 +71,7 @@ def install_with_dialog():
       cancelButton="Cancel", dismissString="Cancel")
   if ans != "Install":
     return False
-  from gnm_maya.progress import MayaProgress
+  from gnm_maya.ui.progress import MayaProgress
   try:
     with MayaProgress("Installing photo-fitting deps (~290 MB)",
                       maximum=2) as prog:

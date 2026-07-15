@@ -30,11 +30,12 @@ def run():
   maya.standalone.initialize(name="python")
   try:
     from maya import cmds as mc
-    from gnm_maya import api, worker
+    from gnm_maya.core.head import GnmHead
+    from gnm_maya.core import worker
 
     mc.file(new=True, force=True)
 
-    head = api.GnmHead(name="gnm_smoke")
+    head = GnmHead(name="gnm_smoke")
     name = head.transform
     assert mc.objExists(name), "mesh not created"
 
@@ -72,7 +73,7 @@ def run():
     print("SMOKE TEST PASSED")
   finally:
     try:
-      from gnm_maya import worker
+      from gnm_maya.core import worker
       worker.shutdown_worker()
     except Exception:
       pass

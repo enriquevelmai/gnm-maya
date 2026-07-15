@@ -12,8 +12,8 @@ import random
 
 from maya import cmds as mc
 
-from gnm_maya import worker as _worker
-from gnm_maya import build as _build
+from gnm_maya.core import worker as _worker
+from gnm_maya.scene import build as _build
 
 logger = logging.getLogger(__name__)
 

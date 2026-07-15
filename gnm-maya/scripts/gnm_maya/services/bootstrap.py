@@ -17,7 +17,7 @@ import os
 import subprocess
 import urllib.request
 
-from gnm_maya import config
+from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ def ensure_gnm_repo(status=lambda msg: None):
   if gnm_repo_available():
     return False
   status("Downloading google/GNM (~40 MB)…")
-  from gnm_maya import updater
+  from gnm_maya.services import updater
   updater.download_and_install()
   logger.info("GNM repo bootstrapped at %s", GNM_REPO_DIR)
   return True
@@ -183,7 +183,7 @@ def ensure_all_with_dialog():
       cancelButton="Cancel", dismissString="Cancel")
   if ans != "Download":
     return False
-  from gnm_maya.progress import MayaProgress
+  from gnm_maya.ui.progress import MayaProgress
   steps = {"n": 0}
   try:
     with MayaProgress("GNM first-run setup", maximum=len(missing) + 1) as prog:

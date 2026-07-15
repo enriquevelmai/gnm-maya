@@ -16,7 +16,7 @@ except ImportError:
 
 from maya import cmds as mc
 
-from gnm_maya import api
+from gnm_maya.core.head import GnmHead, find_heads
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def _run(dlg):
 
 def _current_head():
   """The panel's head if open, else adopt a selected/any GNM head."""
-  from gnm_maya import ui
+  from gnm_maya.ui import panel as ui
   panel = getattr(ui, "_WINDOW", None)
   if panel is not None and getattr(panel, "head", None):
     try:
@@ -35,16 +35,16 @@ def _current_head():
         return panel.head
     except Exception:
       pass
-  heads = api.find_heads(selected_only=True) or api.find_heads()
+  heads = find_heads(selected_only=True) or find_heads()
   if heads:
-    return api.GnmHead.adopt(heads[0])
+    return GnmHead.adopt(heads[0])
   raise RuntimeError("No GNM head in the scene. Create one first (GNM menu).")
 
 
 # --- presets ----------------------------------------------------------------
 
 def preset_browser():
-  from gnm_maya import presets
+  from gnm_maya.scene import presets
 
   dlg = QtWidgets.QDialog(None)
   dlg.setWindowTitle("GNM Presets")
@@ -110,7 +110,7 @@ def preset_browser():
       QtWidgets.QMessageBox.warning(dlg, "Delete failed", str(e))
 
   def do_folder():
-    from gnm_maya import settings
+    from gnm_maya.core import settings
     d = QtWidgets.QFileDialog.getExistingDirectory(
         dlg, "Choose the presets folder", settings.presets_dir())
     if d:
@@ -130,7 +130,7 @@ def preset_browser():
 # --- crowd -------------------------------------------------------------------
 
 def crowd_dialog():
-  from gnm_maya import crowd
+  from gnm_maya.scene import crowd
 
   dlg = QtWidgets.QDialog(None)
   dlg.setWindowTitle("Generate Crowd")
@@ -166,7 +166,8 @@ def crowd_dialog():
 # --- fbx / landmarks ----------------------------------------------------------
 
 def export_selected_fbx():
-  from gnm_maya import export_fbx, settings
+  from gnm_maya.scene import export_fbx
+  from gnm_maya.core import settings
   sel = mc.ls(selection=True) or []
   if not sel:
     mc.confirmDialog(title="Export FBX",
@@ -190,7 +191,7 @@ def export_selected_fbx():
 def open_shape_gallery():
   """Open the pre-rendered min/max shape gallery in the browser."""
   import webbrowser
-  from gnm_maya import ui
+  from gnm_maya.ui import panel as ui
   page = ui.gallery_page_path()
   if page:
     webbrowser.open("file:///" + page.replace("\\", "/"))
@@ -204,26 +205,26 @@ def open_shape_gallery():
 
 
 def create_landmarks():
-  from gnm_maya import landmarks
+  from gnm_maya.scene import landmarks
   grp = landmarks.create_landmark_locators(_current_head())
   logger.info("Landmarks group: %s", grp)
   return grp
 
 
 def update_landmarks():
-  from gnm_maya import landmarks
+  from gnm_maya.scene import landmarks
   landmarks.update_landmark_locators(_current_head())
 
 
 def fit_head_to_landmarks():
   """Reshape the head so its landmarks match the edited locators."""
-  from gnm_maya import landmarks
+  from gnm_maya.scene import landmarks
   head = _current_head()
   name = landmarks.fit_head_to_locators(head)
   mc.inViewMessage(assistMessage="GNM: head fitted to landmarks",
                      position="topCenter", fade=True)
   # Refresh the panel sliders if it is open on this head.
-  from gnm_maya import ui
+  from gnm_maya.ui import panel as ui
   panel = getattr(ui, "_WINDOW", None)
   if panel and getattr(panel, "head", None) and \
      panel.head.transform == head.transform:
@@ -234,7 +235,7 @@ def fit_head_to_landmarks():
 
 def toggle_landmark_mirror():
   """Toggle L<->R mirrored landmark editing (returns new state)."""
-  from gnm_maya import landmarks
+  from gnm_maya.scene import landmarks
   if landmarks._mirror_state["jobs"]:
     landmarks.disable_mirror()
     mc.inViewMessage(assistMessage="GNM landmark mirror: OFF",

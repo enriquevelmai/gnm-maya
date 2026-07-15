@@ -49,7 +49,7 @@ _bootstrap()
 
 from maya import cmds as mc
 import gnm_maya
-from gnm_maya import ui
+from gnm_maya.ui import panel as ui
 
 
 _results = []
@@ -94,7 +94,9 @@ def run():
   check("symmetry toggles on", panel._symmetry is True)
 
   # Show-all expansion on the first large group.
-  big = [g for g in panel.findChildren(ui._CoeffGroup) if g.total > g.shown]
+  from gnm_maya.ui import widgets
+  big = [g for g in panel.findChildren(widgets.CoeffGroup)
+         if g.total > g.shown]
   if big:
     g = big[0]
     before = len(panel._sliders)
@@ -138,7 +140,7 @@ def run():
     print("[skip] semantic tab unavailable")
 
   # Presets roundtrip through the backend the browser uses.
-  from gnm_maya import presets
+  from gnm_maya.scene import presets
   panel.head.randomize_identity(scale=1.0, seed=99)
   before = list(panel.head.identity)
   presets.save_preset(panel.head, "_guitest")
@@ -149,20 +151,20 @@ def run():
   presets.delete_preset("_guitest")
 
   # Landmarks: 68 locators.
-  from gnm_maya import landmarks as lmk
+  from gnm_maya.scene import landmarks as lmk
   grp = lmk.create_landmark_locators(panel.head)
   n_loc = len(mc.listRelatives(grp, children=True) or [])
   check("68 landmark locators created", n_loc == 68)
 
   # Crowd: 3 heads at distinct positions.
-  from gnm_maya import crowd
+  from gnm_maya.scene import crowd
   made = crowd.generate_crowd(count=3, columns=3, spacing=0.6, seed=5)
   xs = {round(mc.xform(t, query=True, translation=True, worldSpace=True)[0], 3)
         for t in made}
   check("crowd creates 3 heads at distinct X", len(made) == 3 and len(xs) == 3)
 
   # Shape gallery tooltips (only if the gallery was generated).
-  from gnm_maya import ui as ui_mod
+  from gnm_maya.ui import panel as ui_mod
   if panel._gallery:
     tip = panel._id_sliders[0].toolTip()
     check("gallery tooltip embeds images", "<img" in tip)

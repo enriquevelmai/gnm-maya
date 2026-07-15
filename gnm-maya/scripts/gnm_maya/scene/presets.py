@@ -17,7 +17,7 @@ from maya import cmds as mc
 
 logger = logging.getLogger(__name__)
 
-from gnm_maya import settings
+from gnm_maya.core import settings
 
 
 def _presets_dir():

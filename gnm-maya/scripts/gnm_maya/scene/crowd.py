@@ -11,8 +11,8 @@ import random
 
 from maya import cmds as mc
 
-from gnm_maya import api
-from gnm_maya import rig as _rig
+from gnm_maya.core.head import generate_head
+from gnm_maya.scene import rig as _rig
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def generate_crowd(count=10, columns=5, spacing=0.5, identity_scale=1.0,
   Returns:
     List of the crowd's mesh transform names (rig transforms when ``bake``).
   """
-  from gnm_maya.progress import MayaProgress
+  from gnm_maya.ui.progress import MayaProgress
   rng = random.Random(seed)
   transforms = []
   with MayaProgress("Generating crowd", maximum=count) as prog:
@@ -52,7 +52,7 @@ def _generate_crowd_loop(count, columns, spacing, identity_scale,
   for i in range(count):
     prog.set(i, "Head %d/%d%s" % (i + 1, count, " (baking)" if bake else ""))
     head_seed = rng.randrange(1 << 30)
-    h = api.generate_head(seed=head_seed, identity_scale=identity_scale,
+    h = generate_head(seed=head_seed, identity_scale=identity_scale,
                           name="gnm_crowd_%02d" % i)
     if expression_scale > 0.0:
       h.randomize_expression(scale=expression_scale,

@@ -18,7 +18,7 @@ import tempfile
 import urllib.request
 import zipfile
 
-from gnm_maya import config
+from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def download_and_install(timeout=180):
 
   # Drop the resident model worker so the next use loads the new files.
   try:
-    from gnm_maya import worker
+    from gnm_maya.core import worker
     worker.shutdown_worker()
   except Exception:
     pass
@@ -112,7 +112,7 @@ def download_and_install(timeout=180):
   # A model update can change/add shapes: mark the local shape gallery stale
   # so the next panel open re-renders it (bootstrap.gallery_available()).
   try:
-    from gnm_maya import bootstrap
+    from gnm_maya.services import bootstrap
     manifest_path = os.path.join(bootstrap.GALLERY_DIR, "manifest.json")
     with open(manifest_path) as f:
       m = json.load(f)
