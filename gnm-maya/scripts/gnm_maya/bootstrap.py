@@ -48,10 +48,23 @@ def gnm_repo_available():
 
 
 GALLERY_DIR = os.path.join(config.MODULE_ROOT, "docs", "shapes")
+GALLERY_FULL_SIZE = 192  # the repo ships a compact (96px) set for GitHub docs
 
 
 def gallery_available():
-  return os.path.isfile(os.path.join(GALLERY_DIR, "manifest.json"))
+  """True only for a full-quality, up-to-date local gallery.
+
+  The repo ships compact 96px images (small enough to browse on GitHub);
+  those, or a gallery marked stale by a GNM model update (which may add
+  shapes), trigger a local full-size re-render on first panel open.
+  """
+  import json
+  try:
+    with open(os.path.join(GALLERY_DIR, "manifest.json")) as f:
+      m = json.load(f)
+  except Exception:
+    return False
+  return m.get("size", 0) >= GALLERY_FULL_SIZE and not m.get("stale")
 
 
 def all_available():

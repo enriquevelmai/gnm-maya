@@ -129,6 +129,59 @@ def _write_index_html(path, size, sections, semantic_rows):
     f.write("\n".join(parts))
 
 
+def _slug(text):
+  return "".join(c if c.isalnum() else "-" for c in text.lower()).strip("-")
+
+
+def _write_markdown(out_dir, sections, semantic_rows, img_width=110):
+  """GitHub-browsable pages: README.md index + one .md per group.
+
+  GitHub renders neither index.html nor huge single pages well, so the index
+  (auto-displayed when browsing docs/shapes/) links to per-group pages, each a
+  | mode | min | neutral | max | table.
+  """
+  index = [
+      "# GNM head — shape gallery", "",
+      "Min/max renders of every Identity/Expression slider mode (coefficient "
+      "&minus;%g / +%g), identical framing per group. Occluded parts (tongue, "
+      "teeth, pupils) are shown as isolated zooms. Open a group:" % (COEFF,
+                                                                     COEFF),
+      "",
+  ]
+  for title, rows, neutral_file in sections:
+    page = "group_%s.md" % _slug(title.split(" (")[0])
+    index.append("- [%s](%s)" % (title, page))
+    lines = [
+        "# %s" % title, "",
+        "[&larr; back to the gallery index](README.md)", "",
+        "| mode | min (&minus;%g) | neutral | max (+%g) |" % (COEFF, COEFF),
+        "| --- | --- | --- | --- |",
+    ]
+    for name, fmin, fmax in rows:
+      lines.append(
+          "| `%s` | <img src='%s' width='%d'> | <img src='%s' width='%d'> "
+          "| <img src='%s' width='%d'> |"
+          % (name, fmin, img_width, neutral_file, img_width, fmax, img_width))
+    with open(os.path.join(out_dir, page), "w", encoding="utf-8") as f:
+      f.write("\n".join(lines) + "\n")
+
+  if semantic_rows:
+    index += ["", "## Semantic expressions", "",
+              "| | | | |", "| --- | --- | --- | --- |"]
+    row = []
+    for name, fname in semantic_rows:
+      row.append("<img src='%s' width='%d'><br>`%s`"
+                 % (fname, img_width, name))
+      if len(row) == 4:
+        index.append("| " + " | ".join(row) + " |")
+        row = []
+    if row:
+      index.append("| " + " | ".join(row + [""] * (4 - len(row))) + " |")
+
+  with open(os.path.join(out_dir, "README.md"), "w", encoding="utf-8") as f:
+    f.write("\n".join(index) + "\n")
+
+
 def _rebuild_html_from_manifest(out_dir):
   """Regenerate index.html from manifest.json (no image rendering).
 
@@ -159,7 +212,8 @@ def _rebuild_html_from_manifest(out_dir):
   semantic_rows = sorted(m.get("semantic", {}).items())
   _write_index_html(os.path.join(out_dir, "index.html"), m.get("size", 192),
                     sections, semantic_rows)
-  _log("Rebuilt index.html (%d sections, %d semantic)"
+  _write_markdown(out_dir, sections, semantic_rows)
+  _log("Rebuilt index.html + markdown pages (%d sections, %d semantic)"
        % (len(sections), len(semantic_rows)))
   print("OK %s" % out_dir)
   return 0
@@ -319,6 +373,7 @@ def main():
 
   _write_index_html(os.path.join(args.out, "index.html"), args.size,
                     sections, sorted(semantic.items()))
+  _write_markdown(args.out, sections, sorted(semantic.items()))
 
   manifest = {"size": args.size, "images": images, "semantic": semantic,
               "neutrals": neutrals}

@@ -55,11 +55,13 @@ gnm-maya/                   <- the Maya module (docs included)
 2. Drag `gnm-maya/drag_and_drop_install.py` from Explorer into a running Maya
    viewport.
 
-It registers the module in place (no copying), adds the **GNM** menu + shelf
-button, and runs the **first-run setup**: the repo ships code only, so the
+It **copies the module into `~/Documents/maya/modules/gnm-maya`** and registers
+it — so afterwards you can **delete the downloaded zip and the extracted
+folder**. It then adds the **GNM** menu + shelf button and runs the
+**first-run setup**: the repo ships code + compact preview images only, so the
 portable Python runtime (~70 MB) and the google/GNM model repo (~40 MB) are
-downloaded once into the module folder, and the shape images are rendered
-locally (~5 min, one time). After that everything runs offline.
+downloaded once into the installed module, and the full-quality shape images
+are rendered locally (~5 min, one time). After that everything runs offline.
 (Photo fitting adds an optional ~290 MB MediaPipe/OpenCV download on first use.)
 
 **Manual alternative — copy into your modules folder:** copy both `GNM.mod` and
@@ -112,14 +114,19 @@ restart Maya; opening the panel offers the same first-run setup.
 - **Describe** (Semantic tab) — type "a very happy asian woman, winking left"
   and Apply. Local synonym lexicon (instant, offline); if a local **Ollama**
   server is running it is used automatically for free-form phrasing.
-- **GNM ▸ Shape Gallery** — a page ([`docs/shapes/index.html`](docs/shapes/index.html))
-  of **min/max renders of every UI slider shape** plus the 20 semantic
-  expressions (1293 images covering ALL 636 modes, included in this repo).
-  Occluded groups (tongue, teeth, pupils) render an isolated zoom of that part
-  instead of the full head, so their change is actually visible. The same
-  images appear on the sliders and in tooltips; pick their size with the
-  panel's image-size dropdown (No images / Small / Medium / Large / Huge).
-  Regenerate with `runtime\python.exe external\gen_gallery.py --out docs\shapes`.
+- **GNM ▸ Shape Gallery** — **min/max renders of every UI slider shape** plus
+  the 20 semantic expressions (1293 images covering ALL 636 modes). Two forms:
+  a local page (`docs/shapes/index.html`, opened by the menu item) and
+  GitHub-browsable markdown ([`docs/shapes/README.md`](docs/shapes/README.md)
+  with one page per region). The repo ships a **compact 96px** set to stay
+  light; on first panel open the module **re-renders the full-quality 192px
+  set locally** (~5 min, one time), and re-renders again automatically after a
+  GNM model update (new/changed shapes). Occluded groups (tongue, teeth,
+  pupils) render an isolated zoom of that part so their change is actually
+  visible. The same images appear on the sliders and in tooltips; pick their
+  size with the panel's image-size dropdown (No images / Small / Medium /
+  Large / Huge). Manual regen:
+  `runtime\python.exe external\gen_gallery.py --out docs\shapes`.
 - **GNM ▸ Quick: Random Head** / **Template Head** — one-click.
 - **GNM ▸ Add Shelf Button** — drops a **GNM** button on the active shelf that
   opens the panel. The drag-and-drop installer also adds this automatically.
@@ -196,14 +203,21 @@ exec(open(r"<...>/gnm-maya/tests/gui_smoke_test.py").read())
 It opens the panel, drives sliders/randomize/reset/symmetry/show-all/licenses,
 prints PASS/FAIL for each, and leaves the panel open for hand inspection.
 
-## Updating GNM
+## Updating
 
-The full upstream repo is vendored at `gnm-maya/external/gnm_repo`. Use
-**GNM ▸ Check for Updates** to compare against `google/GNM` on GitHub and, if a
-newer commit exists, download and replace that folder in place. After a
-successful download you're offered to **Restart Maya** (for a clean state) and
-to **Run GUI Test** to verify the new version. You can also run the test any
-time via **GNM ▸ Run GUI Test**.
+Two separate update checks (both also run quietly when the panel opens, and
+only speak up when something newer exists):
+
+- **GNM ▸ Check for GNM Model Updates** — the vendored `google/GNM` repo at
+  `external/gnm_repo`. Downloads and replaces that folder in place; the model
+  reloads on next use, and the **shape gallery is marked stale** so it
+  re-renders on the next panel open (an update can add/change shapes). You're
+  offered **Restart Maya** and **Run GUI Test** afterwards.
+- **GNM ▸ Check for gnm-maya Tool Updates** — this tool itself
+  (`enriquevelmai/gnm-maya`). Downloads the repo and syncs the code/docs onto
+  your install, never touching the downloaded runtime or model. Because the
+  tool's code is already loaded in the running Maya, a **restart is required**
+  for a tool update to take effect.
 
 ## Citation
 

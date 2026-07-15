@@ -109,6 +109,20 @@ def download_and_install(timeout=180):
   except Exception:
     pass
 
+  # A model update can change/add shapes: mark the local shape gallery stale
+  # so the next panel open re-renders it (bootstrap.gallery_available()).
+  try:
+    from gnm_maya import bootstrap
+    manifest_path = os.path.join(bootstrap.GALLERY_DIR, "manifest.json")
+    with open(manifest_path) as f:
+      m = json.load(f)
+    m["stale"] = True
+    with open(manifest_path, "w") as f:
+      json.dump(m, f, indent=2)
+    logger.info("Shape gallery marked stale (re-renders on next panel open).")
+  except Exception:
+    pass  # no gallery yet — nothing to invalidate
+
   logger.info("Updated GNM to %s (%s)", short(latest["sha"]), latest["date"])
   return latest
 
