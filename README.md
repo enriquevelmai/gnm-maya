@@ -8,10 +8,7 @@ photo fitting, rig baking, crowds, and more.
 copy that folder (plus `GNM.mod`) straight into your Maya `modules` directory.**
 
 - 📖 Full documentation: [gnm-maya/README.md](gnm-maya/README.md)
-- 🖼 Shape gallery (what every slider does): generated locally on first run
-  (~1300 images, so it isn't stored in this repo) at
-  `gnm-maya/docs/shapes/index.html` — see **GNM ▸ Shape Gallery** in
-  [gnm-maya/README.md](gnm-maya/README.md)
+- 🖼 Shape gallery (what every slider does): [gnm-maya/docs/shapes/index.html](gnm-maya/docs/shapes/index.html)
 - ⚖ Licensing & attributions: [gnm-maya/NOTICE.md](gnm-maya/NOTICE.md)
 
 ## Quick install (Windows)

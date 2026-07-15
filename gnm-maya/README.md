@@ -36,8 +36,7 @@ GNM.mod                     <- module descriptor (copy this into modules/)
 gnm-maya/                   <- the Maya module (docs included)
   README.md / NOTICE.md     <- this documentation
   drag_and_drop_install.py  <- drag into Maya to install
-  docs/shapes/              <- shape gallery images (rendered on first run;
-                                 not stored in git — ~1300 images, ~30 MB)
+  docs/shapes/              <- shape gallery images (~1300 renders, included)
   scripts/
     userSetup.py            <- adds the "GNM" menu on launch
     gnm_maya/               <- Maya-side package (pure python, Qt-optional)
@@ -113,13 +112,14 @@ restart Maya; opening the panel offers the same first-run setup.
 - **Describe** (Semantic tab) — type "a very happy asian woman, winking left"
   and Apply. Local synonym lexicon (instant, offline); if a local **Ollama**
   server is running it is used automatically for free-form phrasing.
-- **GNM ▸ Shape Gallery** — a generated page (`docs/shapes/index.html`) of
-  **min/max renders of every UI slider shape** plus the 20 semantic
-  expressions (1293 images covering ALL 636 modes). Rendered locally on first
-  run — not stored in this repo. The same images appear on the sliders and in
-  tooltips; pick their size with the panel's image-size dropdown (No images /
-  Small / Medium / Large / Huge). Regenerate with
-  `runtime\python.exe external\gen_gallery.py --out docs\shapes`.
+- **GNM ▸ Shape Gallery** — a page ([`docs/shapes/index.html`](docs/shapes/index.html))
+  of **min/max renders of every UI slider shape** plus the 20 semantic
+  expressions (1293 images covering ALL 636 modes, included in this repo).
+  Occluded groups (tongue, teeth, pupils) render an isolated zoom of that part
+  instead of the full head, so their change is actually visible. The same
+  images appear on the sliders and in tooltips; pick their size with the
+  panel's image-size dropdown (No images / Small / Medium / Large / Huge).
+  Regenerate with `runtime\python.exe external\gen_gallery.py --out docs\shapes`.
 - **GNM ▸ Quick: Random Head** / **Template Head** — one-click.
 - **GNM ▸ Add Shelf Button** — drops a **GNM** button on the active shelf that
   opens the panel. The drag-and-drop installer also adds this automatically.

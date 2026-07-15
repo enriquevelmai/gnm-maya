@@ -5,7 +5,6 @@ venv/
 runtime/
 external/gnm_repo/
 external/GNM_version.json
-docs/shapes/
 
 # Python bytecode
 __pycache__/

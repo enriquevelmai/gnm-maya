@@ -233,6 +233,9 @@ def main():
       # clearly as the dark disc growing/shrinking.
       "pupils": {"intersect": ("eye_interiors", "left_eye"),
                  "overlay": "pupils"},
+      # Teeth are hidden behind the closed lips/skin in a full-head render,
+      # so isolate just the upper/lower teeth+gums mesh.
+      "teeth": {"comps": ("upper_teeth_and_gums", "lower_teeth_and_gums")},
   }
 
   def _tri_idx(*groups):
