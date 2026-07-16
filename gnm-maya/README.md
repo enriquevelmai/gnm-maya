@@ -32,10 +32,10 @@ venv, so it runs on any Windows machine **with no Python install** and is
 **Maya-version agnostic** (2022–2027+) with no ABI concerns.
 
 ```
+drag_and_drop_install.py    <- drag into Maya to install (at the repo top)
 GNM.mod                     <- module descriptor (copy this into modules/)
 gnm-maya/                   <- the Maya module (docs included)
   README.md / NOTICE.md     <- this documentation
-  drag_and_drop_install.py  <- drag into Maya to install
   docs/shapes/              <- shape gallery images (~1300 renders, included)
   scripts/
     userSetup.py            <- adds the "GNM" menu on launch
@@ -52,8 +52,8 @@ gnm-maya/                   <- the Maya module (docs included)
 **Easiest — drag and drop:**
 
 1. Download this repo (Code ▸ Download ZIP) and extract it anywhere.
-2. Drag `gnm-maya/drag_and_drop_install.py` from Explorer into a running Maya
-   viewport.
+2. Drag `drag_and_drop_install.py` (at the top of the extracted folder) from
+   Explorer into a running Maya viewport.
 
 It **copies the module into `~/Documents/maya/modules/gnm-maya`** and registers
 it — so afterwards you can **delete the downloaded zip and the extracted

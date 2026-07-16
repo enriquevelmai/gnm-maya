@@ -12,7 +12,8 @@ photo fitting, rig baking, crowds, and more.
 ## Quick install (Windows)
 
 1. Code ▸ Download ZIP, extract anywhere.
-2. Drag `gnm-maya/drag_and_drop_install.py` into a running Maya viewport.
+2. Drag `drag_and_drop_install.py` (at the top of the extracted folder) into a
+   running Maya viewport.
 3. Accept the first-run downloads (portable runtime + GNM model).
 
 The installer **copies the module into `~/Documents/maya/modules`**, so once

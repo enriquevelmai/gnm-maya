@@ -11,8 +11,9 @@ Because the install is a copy (``~/Documents/maya/modules/gnm-maya``), you can
 keeps pointing at them. Any already-downloaded runtime / GNM model inside the
 extracted folder is carried along so it isn't re-downloaded.
 
-Lives inside the ``gnm-maya`` module folder, so this file's own directory is
-the module root.
+Lives at the top of the repo for easy discovery. The actual module is the
+``gnm-maya`` subfolder next to this file (it is also tolerant of sitting
+directly inside the module, so an old placement still works).
 """
 
 from __future__ import annotations
@@ -28,6 +29,21 @@ def _this_dir():
   except NameError:
     import inspect
     return os.path.dirname(os.path.abspath(inspect.getsourcefile(lambda: 0)))
+
+
+def _find_module_root(here):
+  """Locate the module (the folder containing ``scripts/gnm_maya``).
+
+  Supports both layouts: this installer at the repo top with the module in a
+  ``gnm-maya`` subfolder (current), or the installer sitting directly inside
+  the module (older downloads). Returns None if neither is found.
+  """
+  if os.path.isdir(os.path.join(here, "scripts", "gnm_maya")):
+    return here  # installer is inside the module folder
+  candidate = os.path.join(here, "gnm-maya")
+  if os.path.isdir(os.path.join(candidate, "scripts", "gnm_maya")):
+    return candidate  # installer at repo top, module in the gnm-maya subfolder
+  return None
 
 
 def _write_mod(module_root, modules_dir):
@@ -55,12 +71,13 @@ def _copy_module(src_root, dst_root):
 def onMayaDroppedPythonFile(*args):
   from maya import cmds as mc
 
-  src_root = _this_dir()  # this file lives in the module root
-  if not os.path.isdir(os.path.join(src_root, "scripts")):
+  src_root = _find_module_root(_this_dir())  # the folder that holds scripts/
+  if src_root is None:
     mc.confirmDialog(
-        title="GNM install failed",
-        message="Could not find a 'scripts' folder next to this installer.\n"
-                "Keep drag_and_drop_install.py inside the gnm-maya folder.",
+        title="GNM install failed", icon="critical",
+        message="Could not find the gnm-maya module next to this installer.\n"
+                "Keep drag_and_drop_install.py in the extracted repo, beside "
+                "the 'gnm-maya' folder.",
         button=["OK"])
     return
 
@@ -86,7 +103,7 @@ def onMayaDroppedPythonFile(*args):
     try:
       _copy_module(src_root, install_root)
     except Exception as e:
-      mc.confirmDialog(title="GNM install failed",
+      mc.confirmDialog(title="GNM install failed", icon="critical",
                          message="Could not copy the module into:\n%s\n\n%s"
                                  % (install_root, e),
                          button=["OK"])
@@ -95,7 +112,7 @@ def onMayaDroppedPythonFile(*args):
   try:
     mod_path = _write_mod(install_root, modules_dir)
   except Exception as e:
-    mc.confirmDialog(title="GNM install failed",
+    mc.confirmDialog(title="GNM install failed", icon="critical",
                        message="Could not write module file:\n%s" % e,
                        button=["OK"])
     return
