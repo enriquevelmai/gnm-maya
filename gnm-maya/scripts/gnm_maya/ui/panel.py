@@ -22,6 +22,7 @@ from maya import cmds as mc
 
 from gnm_maya.core.head import GnmHead, find_heads
 from gnm_maya.core import config
+from gnm_maya.ui import icons
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ class GnmPanel(QtWidgets.QWidget):
     self.setObjectName(_OBJECT_NAME)
     self.setWindowFlags(QtCore.Qt.Window)
     self.setWindowTitle(_TITLE)
+    self.setWindowIcon(icons.window_icon())
     self.setMinimumSize(700, 380)
     self.resize(860, 460)
 
@@ -128,17 +130,26 @@ class GnmPanel(QtWidgets.QWidget):
     self.status.setWordWrap(True)
     self.sym_chk = QtWidgets.QCheckBox("Symmetry (L/R)")
     self.sym_chk.setToolTip(
-        "Mirror edits across the left/right eye regions and eye joints.")
+        "<b>Left/right symmetry</b><br>Mirror every edit across the left and "
+        "right eye regions and eye joints, so both sides stay matched while "
+        "you sculpt or randomize.")
     self.tex_chk = QtWidgets.QCheckBox("Texture")
-    self.tex_chk.setToolTip("Apply a PNG texture to the head (default: the "
-                            "bundled GNM edgeflow map).")
-    self.tex_browse = QtWidgets.QPushButton("…")
+    self.tex_chk.setToolTip(
+        "<b>Show texture</b><br>Apply a PNG colour map to the head. Defaults "
+        "to the bundled GNM edgeflow map; use the folder button to pick your "
+        "own.")
+    self.tex_browse = QtWidgets.QPushButton()
     self.tex_browse.setFixedWidth(28)
-    self.tex_browse.setToolTip("Choose a custom PNG texture.")
+    self.tex_browse.setToolTip(
+        "<b>Choose texture…</b><br>Pick a custom PNG to apply to the head.")
+    icons.decorate(self.tex_browse, "folder_open", 16)
     self._texture_path = None  # None -> bundled edgeflow texture
-    self.info_btn = QtWidgets.QPushButton("ⓘ")
+    self.info_btn = QtWidgets.QPushButton()
     self.info_btn.setFixedWidth(28)
-    self.info_btn.setToolTip("How these sliders work (PCA-style basis).")
+    self.info_btn.setToolTip(
+        "<b>How the sliders work</b><br>A short explainer of GNM's PCA-style "
+        "shape basis (which modes do what).")
+    icons.decorate(self.info_btn, "info", 16)
     self.thumb_combo = QtWidgets.QComboBox()
     for label, px in (("No images", 0), ("Small", 40), ("Medium", 56),
                       ("Large", 84), ("Huge", 128)):
@@ -154,18 +165,23 @@ class GnmPanel(QtWidgets.QWidget):
     self._scale_spins = []
     self.reset_btn = QtWidgets.QPushButton("Reset Selected / All")
     self.reset_btn.setToolTip(
-        "Reset the selected GNM head(s) to the neutral template.\n"
-        "With nothing selected, resets this panel's head.")
+        "<b>Reset to neutral</b><br>Return the selected GNM head(s) to the "
+        "average template — identity, expression, pose and translation all "
+        "zeroed.<br>With nothing selected, resets this panel's head.")
+    icons.decorate(self.reset_btn, "restart", 16)
     self.fit_btn = QtWidgets.QPushButton("Fit from Photo…")
     self.fit_btn.setToolTip(
-        "Detect 68 facial landmarks in a photo (MediaPipe, local) and fit the\n"
-        "identity coefficients to them. Gives a likeness, not a scan match.")
+        "<b>Fit from photo</b><br>Detect 68 facial landmarks in a photo "
+        "(MediaPipe, runs locally) and solve the identity coefficients to "
+        "match them.<br>Produces a likeness, not an exact scan.")
+    icons.decorate(self.fit_btn, "photo_camera", 16)
     self.bake_btn = QtWidgets.QPushButton("Bake Rig")
     self.bake_btn.setToolTip(
-        "Bake this head into a self-sufficient rigged mesh:\n"
-        "- blendShape with the 20 named expressions (keyframable)\n"
-        "- neck/head/eye joints skinned with GNM's weights\n"
-        "The result needs no GNM runtime and exports to FBX.")
+        "<b>Bake rig</b><br>Convert this head into a self-sufficient rigged "
+        "mesh:<br>• blendShape with the 20 named expressions (keyframable)"
+        "<br>• neck/head/eye joints skinned with GNM's weights<br>The result "
+        "needs no GNM runtime and exports to FBX.")
+    icons.decorate(self.bake_btn, "cube", 16)
 
     try:
       if adopt_transform and mc.objExists(adopt_transform):
@@ -349,6 +365,7 @@ class GnmPanel(QtWidgets.QWidget):
       """A Sample + Reset button pair so the user can toggle a sample on/off."""
       reset_btn = QtWidgets.QPushButton("Reset")
       reset_btn.setToolTip(reset_tip)
+      icons.decorate(reset_btn, "restart", 15)
       reset_btn.clicked.connect(reset_slot)
       host = QtWidgets.QWidget()
       hb = QtWidgets.QHBoxLayout(host)
@@ -364,23 +381,31 @@ class GnmPanel(QtWidgets.QWidget):
     self.sem_ethnicity = QtWidgets.QComboBox()
     self.sem_ethnicity.addItems([_pretty(e) for e in sem["ethnicity"]])
     id_btn = QtWidgets.QPushButton("Sample Identity")
+    id_btn.setToolTip(
+        "<b>Sample identity</b><br>Draw a random face for the chosen gender × "
+        "ethnicity. Click again for a different one.")
+    icons.decorate(id_btn, "face", 16)
     id_btn.clicked.connect(self._sample_identity)
     il.addRow("Gender", self.sem_gender)
     il.addRow("Ethnicity", self.sem_ethnicity)
     il.addRow(_sample_reset_row(
         id_btn, self._reset_semantic_identity,
-        "Reset identity back to the neutral (average) head."))
+        "<b>Reset identity</b><br>Back to the neutral (average) head."))
 
     exbox = QtWidgets.QGroupBox("Expression")
     el = QtWidgets.QFormLayout(exbox)
     self.sem_expr = QtWidgets.QComboBox()
     self.sem_expr.addItems([_pretty(e) for e in sem["expression"]])
     ex_btn = QtWidgets.QPushButton("Sample Expression")
+    ex_btn.setToolTip(
+        "<b>Sample expression</b><br>Apply the selected named expression with "
+        "a fresh random variation. Click again to re-roll it.")
+    icons.decorate(ex_btn, "mood", 16)
     ex_btn.clicked.connect(self._sample_expression)
     el.addRow("Expression", self.sem_expr)
     el.addRow(_sample_reset_row(
         ex_btn, self._reset_semantic_expression,
-        "Reset expression back to neutral (no expression)."))
+        "<b>Reset expression</b><br>Back to neutral (no expression)."))
 
     # Natural-language description (local lexicon, or local Ollama if running).
     descbox = QtWidgets.QGroupBox("Describe")
@@ -388,7 +413,15 @@ class GnmPanel(QtWidgets.QWidget):
     self.desc_edit = QtWidgets.QLineEdit()
     self.desc_edit.setPlaceholderText(
         "e.g. 'a very happy asian woman, winking left'")
+    self.desc_edit.setToolTip(
+        "<b>Describe a face</b><br>Type a natural-language description; a "
+        "local lexicon (or Ollama, if running) maps it to identity and "
+        "expression. Press Enter or Apply.")
     desc_btn = QtWidgets.QPushButton("Apply")
+    desc_btn.setToolTip(
+        "<b>Apply description</b><br>Interpret the text and drive the head to "
+        "match.")
+    icons.decorate(desc_btn, "sparkle", 16)
     desc_btn.clicked.connect(self._apply_description)
     self.desc_edit.returnPressed.connect(self._apply_description)
     dl.addWidget(self.desc_edit, 1)
@@ -465,9 +498,16 @@ class GnmPanel(QtWidgets.QWidget):
     g.addWidget(et_lbl, 1, 6)
 
     reset = QtWidgets.QPushButton("Reset Mixes")
+    reset.setToolTip(
+        "<b>Reset mixes</b><br>Snap both Mix sliders back to 0 (full Expr 1 / "
+        "Ethn 1).")
+    icons.decorate(reset, "restart", 15)
     reset.clicked.connect(self._reset_mixes)
     reroll = QtWidgets.QPushButton("Re-roll")
-    reroll.setToolTip("Pick a new random latent for the blends.")
+    reroll.setToolTip(
+        "<b>Re-roll latent</b><br>Pick a new random latent for the blends, "
+        "keeping the current Mix positions.")
+    icons.decorate(reroll, "shuffle", 15)
     reroll.clicked.connect(self._reroll_blend)
     g.addWidget(reset, 2, 1)
     g.addWidget(reroll, 2, 3)
@@ -565,8 +605,14 @@ class GnmPanel(QtWidgets.QWidget):
     v = QtWidgets.QVBoxLayout(container)
 
     rnd = QtWidgets.QPushButton("Randomize %s" % kind.capitalize())
+    rnd.setToolTip(
+        "<b>Randomize %s</b><br>Draw random values for every %s mode, scaled "
+        "by 'random scale'. Higher scale = more extreme." % (kind, kind))
+    icons.decorate(rnd, "dice", 16)
     rnd.clicked.connect(lambda: self._randomize_kind(kind))
     rst = QtWidgets.QPushButton("Reset %s" % kind.capitalize())
+    rst.setToolTip("<b>Reset %s</b><br>Zero every %s mode." % (kind, kind))
+    icons.decorate(rst, "restart", 16)
     rst.clicked.connect(lambda: self._reset_kind(kind))
     header = [rnd] + self._make_scale_controls() + [rst]
     v.addWidget(self._tab_header(header))
@@ -584,8 +630,15 @@ class GnmPanel(QtWidgets.QWidget):
     v = QtWidgets.QVBoxLayout(container)
 
     rnd = QtWidgets.QPushButton("Randomize Pose")
+    rnd.setToolTip(
+        "<b>Randomize pose</b><br>Jitter the neck/head/eye joint rotations, "
+        "scaled by 'random scale'.")
+    icons.decorate(rnd, "dice", 16)
     rnd.clicked.connect(self._randomize_pose)
     rst = QtWidgets.QPushButton("Reset Pose")
+    rst.setToolTip("<b>Reset pose</b><br>Return all joints to their rest "
+                   "rotation.")
+    icons.decorate(rst, "restart", 16)
     rst.clicked.connect(self._reset_pose)
     v.addWidget(self._tab_header([rnd] + self._make_scale_controls() + [rst]))
 
@@ -611,6 +664,9 @@ class GnmPanel(QtWidgets.QWidget):
     v = QtWidgets.QVBoxLayout(container)
 
     rst = QtWidgets.QPushButton("Reset Translation")
+    rst.setToolTip("<b>Reset translation</b><br>Move the head back to the "
+                   "world origin.")
+    icons.decorate(rst, "restart", 16)
     rst.clicked.connect(self._reset_translation)
     v.addWidget(self._tab_header([rst]))
 

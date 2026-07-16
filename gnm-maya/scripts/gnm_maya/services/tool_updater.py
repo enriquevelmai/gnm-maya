@@ -50,8 +50,9 @@ CHANNEL_DEV = "dev"          # follow master-branch commits
 _VERSION_FILE = os.path.join(config.MODULE_ROOT, "TOOL_VERSION.json")
 
 # Subfolders that are entirely tool-owned: replaced wholesale (handles
-# renamed/deleted files correctly, unlike a plain overlay copy).
-_REPLACE_DIRS = ("scripts", "tests", "docs")
+# renamed/deleted files correctly, unlike a plain overlay copy). The runtime
+# regenerates icons/_cache on demand, so shipping the SVGs is enough.
+_REPLACE_DIRS = ("scripts", "tests", "docs", "icons")
 
 # external/ mixes tool code (*.py) with the separately-managed gnm_repo/ and
 # GNM_version.json — only the *.py files are synced (added/updated/removed).

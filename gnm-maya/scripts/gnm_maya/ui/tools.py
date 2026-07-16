@@ -89,12 +89,24 @@ def preset_browser():
   except Exception:
     logger.exception("preset listing failed")
 
+  from gnm_maya.ui import icons
   row = QtWidgets.QHBoxLayout()
   save_btn = QtWidgets.QPushButton("Save current…")
+  save_btn.setToolTip("<b>Save preset</b><br>Store the current head's "
+                      "coefficients under a name (with a thumbnail).")
+  icons.decorate(save_btn, "bookmark", 15)
   load_btn = QtWidgets.QPushButton("Load")
+  load_btn.setToolTip("<b>Load preset</b><br>Apply the selected preset to the "
+                      "current head.")
+  icons.decorate(load_btn, "download", 15)
   del_btn = QtWidgets.QPushButton("Delete")
+  del_btn.setToolTip("<b>Delete preset</b><br>Remove the selected preset from "
+                     "disk.")
+  icons.decorate(del_btn, "delete", 15)
   folder_btn = QtWidgets.QPushButton("Folder…")
-  folder_btn.setToolTip("Choose where presets are stored.")
+  folder_btn.setToolTip("<b>Presets folder</b><br>Choose where presets are "
+                        "stored (remembered across sessions).")
+  icons.decorate(folder_btn, "folder_open", 15)
   close_btn = QtWidgets.QPushButton("Close")
   for b in (save_btn, load_btn, del_btn, folder_btn, close_btn):
     row.addWidget(b)

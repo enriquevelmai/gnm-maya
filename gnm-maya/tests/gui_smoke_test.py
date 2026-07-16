@@ -76,6 +76,15 @@ def run():
   check("identity sliders built", len(panel._id_sliders) > 0)
   check("expression sliders built", len(panel._expr_sliders) > 0)
 
+  # Icons: the loader renders + tints the bundled SVGs, and buttons carry them.
+  from gnm_maya.ui import icons
+  check("icon loader renders a bundled SVG",
+        not icons.icon("dice", 16).isNull())
+  check("bottom-bar buttons have icons",
+        not panel.bake_btn.icon().isNull()
+        and not panel.reset_btn.icon().isNull())
+  check("window icon set", not panel.windowIcon().isNull())
+
   # Drive an identity slider through its widget (fires the live callback).
   panel._id_sliders[0].s.setValue(200)  # 200 / 100 = 2.0
   check("identity slider drives the head",

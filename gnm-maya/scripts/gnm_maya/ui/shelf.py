@@ -38,11 +38,24 @@ def add_shelf_button(shelf=None):
     except Exception:
       pass
 
+  # Prefer our bundled GNM emblem; fall back to a stock Maya icon if the PNG
+  # can't be produced (no Qt / missing SVG). The overlay label keeps it
+  # recognisable either way.
+  image = "commandButton.png"
+  try:
+    from gnm_maya.ui import icons
+    png = icons.image_file("gnm", 32, color="#dcdcdc")
+    if png:
+      image = png
+  except Exception:
+    logger.debug("GNM shelf icon unavailable; using stock image",
+                 exc_info=True)
+
   btn = mc.shelfButton(
       parent=shelf,
       label=_LABEL,
       annotation="Open the GNM Head (Generative aNthropometric Model) panel",
-      image="commandButton.png",     # stock Maya icon
+      image=image,
       imageOverlayLabel="GNM",        # text drawn on the button
       command=_COMMAND,
       sourceType="python",

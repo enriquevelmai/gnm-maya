@@ -104,6 +104,11 @@ def show(parent=None):
 
   dlg = QtWidgets.QDialog(parent)
   dlg.setWindowTitle("GNM — Licenses")
+  try:
+    from gnm_maya.ui import icons
+    dlg.setWindowIcon(icons.window_icon())
+  except Exception:
+    pass
   dlg.resize(760, 560)
   lay = QtWidgets.QHBoxLayout(dlg)
 
