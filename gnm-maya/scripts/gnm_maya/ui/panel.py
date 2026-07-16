@@ -345,6 +345,18 @@ class GnmPanel(QtWidgets.QWidget):
     def _pretty(x):
       return x.replace("_", " ").title()
 
+    def _sample_reset_row(sample_btn, reset_slot, reset_tip):
+      """A Sample + Reset button pair so the user can toggle a sample on/off."""
+      reset_btn = QtWidgets.QPushButton("Reset")
+      reset_btn.setToolTip(reset_tip)
+      reset_btn.clicked.connect(reset_slot)
+      host = QtWidgets.QWidget()
+      hb = QtWidgets.QHBoxLayout(host)
+      hb.setContentsMargins(0, 0, 0, 0)
+      hb.addWidget(sample_btn, 1)
+      hb.addWidget(reset_btn)
+      return host
+
     idbox = QtWidgets.QGroupBox("Identity")
     il = QtWidgets.QFormLayout(idbox)
     self.sem_gender = QtWidgets.QComboBox()
@@ -355,7 +367,9 @@ class GnmPanel(QtWidgets.QWidget):
     id_btn.clicked.connect(self._sample_identity)
     il.addRow("Gender", self.sem_gender)
     il.addRow("Ethnicity", self.sem_ethnicity)
-    il.addRow(id_btn)
+    il.addRow(_sample_reset_row(
+        id_btn, self._reset_semantic_identity,
+        "Reset identity back to the neutral (average) head."))
 
     exbox = QtWidgets.QGroupBox("Expression")
     el = QtWidgets.QFormLayout(exbox)
@@ -364,7 +378,9 @@ class GnmPanel(QtWidgets.QWidget):
     ex_btn = QtWidgets.QPushButton("Sample Expression")
     ex_btn.clicked.connect(self._sample_expression)
     el.addRow("Expression", self.sem_expr)
-    el.addRow(ex_btn)
+    el.addRow(_sample_reset_row(
+        ex_btn, self._reset_semantic_expression,
+        "Reset expression back to neutral (no expression)."))
 
     # Natural-language description (local lexicon, or local Ollama if running).
     descbox = QtWidgets.QGroupBox("Describe")
@@ -727,6 +743,25 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Reset %s." % kind)
     except Exception as e:
       self._show_error("Reset %s failed" % kind, e)
+
+  @staticmethod
+  def _zero_slider_silent(slider):
+    """Snap a mix slider back to 0 without firing its blend callback."""
+    if slider is None:
+      return
+    slider.blockSignals(True)
+    slider.setValue(0)
+    slider.blockSignals(False)
+
+  def _reset_semantic_identity(self):
+    """Semantic-tab 'Reset': neutral identity + clear the ethnicity mix."""
+    self._reset_kind("identity")
+    self._zero_slider_silent(getattr(self, "blend_ethn_mix", None))
+
+  def _reset_semantic_expression(self):
+    """Semantic-tab 'Reset': neutral expression + clear the expression mix."""
+    self._reset_kind("expression")
+    self._zero_slider_silent(getattr(self, "blend_expr_mix", None))
 
   def _randomize_pose(self):
     if not self.head:

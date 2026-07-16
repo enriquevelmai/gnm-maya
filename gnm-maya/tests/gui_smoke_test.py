@@ -126,12 +126,28 @@ def run():
     panel._sample_expression()
     check("semantic sample expression drives coeffs",
           any(abs(x) > 1e-6 for x in panel.head.expression))
+    # Reset Expression from the semantic tab returns to neutral.
+    panel._reset_semantic_expression()
+    check("semantic reset expression zeros coeffs",
+          all(abs(x) < 1e-6 for x in panel.head.expression))
+    panel.sem_gender.setCurrentIndex(0)
+    panel._sample_identity()
+    check("semantic sample identity drives coeffs",
+          any(abs(x) > 1e-6 for x in panel.head.identity))
+    panel._reset_semantic_identity()
+    check("semantic reset identity zeros coeffs",
+          all(abs(x) < 1e-6 for x in panel.head.identity))
     panel.head.reset_all()
     panel.blend_expr2.setCurrentIndex(10)  # smile_wide
     panel.blend_expr_mix.setValue(50)      # schedules throttled blend
     panel._do_refresh()                    # flush the pending action now
     check("blend mix slider drives coeffs",
           any(abs(x) > 1e-6 for x in panel.head.expression))
+    # Reset clears the mix slider silently (no re-blend fired).
+    panel._reset_semantic_expression()
+    check("semantic reset clears the expression mix slider",
+          panel.blend_expr_mix.value() == 0
+          and all(abs(x) < 1e-6 for x in panel.head.expression))
     panel.desc_edit.setText("very happy, slightly surprised")
     panel._apply_description()
     check("describe field applies expression",
