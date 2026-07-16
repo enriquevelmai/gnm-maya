@@ -164,6 +164,27 @@ def run():
   else:
     print("[skip] semantic tab unavailable")
 
+  # Area Randomize: masked randomize touches only the checked region.
+  if getattr(panel, "_area_checks", None):
+    panel.head.reset_all()
+    panel._set_all_areas(False)
+    label = next(l for l, k in panel._area_ranges.items() if "identity" in k)
+    panel._area_checks[label].setChecked(True)
+    panel._randomize_areas("identity")
+    s, e = panel._area_ranges[label]["identity"]
+    inside = any(abs(x) > 1e-9 for x in panel.head.identity[s:e + 1])
+    outside = all(abs(panel.head.identity[i]) < 1e-9
+                  for i in range(len(panel.head.identity))
+                  if not (s <= i <= e))
+    check("area randomize confined to checked region (%s)" % label,
+          inside and outside)
+    panel._reset_areas()
+    check("area reset zeros the checked region",
+          all(abs(x) < 1e-9 for x in panel.head.identity))
+    panel._set_all_areas(False)
+  else:
+    print("[skip] area randomize box unavailable")
+
   # Presets roundtrip through the backend the browser uses.
   from gnm_maya.scene import presets
   panel.head.randomize_identity(scale=1.0, seed=99)

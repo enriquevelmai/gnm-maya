@@ -69,6 +69,23 @@ def run():
     assert abs(after_id - base) > 1e-4, "identity did not change mesh"
     print("[ok] identity drives mesh (delta=%.4f)" % (after_id - base))
 
+    # area mask: randomize_range must touch ONLY the given region's coeffs
+    head.reset_all()
+    groups = head.topology.meta.get("identity_groups", [])
+    assert groups, "no identity groups in topology meta"
+    label, start, end = groups[0]
+    head.randomize_range("identity", start, end, scale=1.0, seed=7)
+    inside = any(abs(x) > 1e-9 for x in head.identity[start:end + 1])
+    outside = all(abs(head.identity[i]) < 1e-9
+                  for i in range(len(head.identity))
+                  if not (start <= i <= end))
+    assert inside, "area randomize left the masked region untouched"
+    assert outside, "area randomize leaked outside the mask"
+    head.clear("identity", range(start, end + 1))
+    assert all(abs(x) < 1e-9 for x in head.identity), "area clear incomplete"
+    print("[ok] area mask randomize/reset confined to '%s' [%d..%d]"
+          % (label, start, end))
+
     worker.shutdown_worker()
     print("SMOKE TEST PASSED")
   finally:

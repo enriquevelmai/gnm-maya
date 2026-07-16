@@ -196,6 +196,30 @@ class GnmHead(object):
     logger.info("Randomized expression (scale=%.2f, symmetric=%s) on '%s'",
                 scale, symmetric, self.transform)
 
+  def randomize_range(self, kind, start, end, scale=1.0, seed=None,
+                      symmetric=False, update=True):
+    """Randomize ONLY coefficients [start..end] of one basis, leaving the
+    rest untouched — the per-area "mask" behind the Semantic tab's Area
+    Randomize box (regions come from the model's *_groups metadata).
+
+    With ``symmetric`` (expression only), each randomized coefficient is
+    copied onto its L/R mirror even when the mirror lies outside the range,
+    so e.g. masking just left_eye_region keeps both eyes matched.
+    """
+    rng = random.Random(seed)
+    coeffs = self.identity if kind == "identity" else self.expression
+    for i in range(start, end + 1):
+      coeffs[i] = rng.gauss(0.0, 1.0) * scale
+    if symmetric and kind == "expression":
+      for i in range(start, end + 1):
+        j = self.expression_mirror.get(i)
+        if j is not None:
+          coeffs[j] = coeffs[i]
+    if update:
+      self._update()
+    logger.info("Randomized %s[%d..%d] (scale=%.2f) on '%s'",
+                kind, start, end, scale, self.transform)
+
   def randomize_pose(self, scale=0.3, seed=None, symmetric=False):
     rng = random.Random(seed)
     rot = [[rng.gauss(0.0, 1.0) * scale for _ in range(3)]

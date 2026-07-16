@@ -98,6 +98,9 @@ Per-platform notes:
   Model)*, docked to the Maya main window. A **Semantic** tab samples identity
   by **Gender × Ethnicity** and **20 named expressions** (Smile Wide, Happy,
   Wink Left, …) — GNM's conditional-VAE decoders, run in numpy (no TensorFlow).
+  Its **Area Randomize** box masks randomization to checked face regions
+  (left/right eye, lower face, head, …): lock a face you like and re-roll just
+  the nose/jaw area, or zero one region without touching the rest.
   Then tabs for **Identity / Expression / Pose / Translation** with
   per-coefficient sliders grouped by body part
   (double-click a slider to reset it). Each tab has its own **Randomize** and

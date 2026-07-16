@@ -355,6 +355,7 @@ class GnmPanel(QtWidgets.QWidget):
       msg.setWordWrap(True)
       msg.setAlignment(QtCore.Qt.AlignTop)
       v.addWidget(msg)
+      v.addWidget(self._area_box())  # needs only group metadata, not decoders
       v.addStretch(1)
       return container
 
@@ -435,6 +436,7 @@ class GnmPanel(QtWidgets.QWidget):
     v.addLayout(row)
 
     v.addWidget(self._blend_box(sem, _pretty))
+    v.addWidget(self._area_box())
 
     note = QtWidgets.QLabel(
         "Categorical sampling draws a fresh random latent (repeated clicks "
@@ -512,6 +514,135 @@ class GnmPanel(QtWidgets.QWidget):
     g.addWidget(reset, 2, 1)
     g.addWidget(reroll, 2, 3)
     return box
+
+  def _area_box(self):
+    """Per-area mask: randomize/reset only the checked face regions.
+
+    Regions come from the model's identity_groups/expression_groups metadata
+    (left eye, right eye, lower face, head, …). Randomizing touches ONLY the
+    checked regions' coefficients — everything else keeps its current values —
+    so you can e.g. lock a face you like and explore just the nose/jaw area.
+    """
+    # label -> {"identity": (start, end), "expression": (start, end)}
+    meta = self.head.topology.meta
+    areas = {}
+    for kind in ("identity", "expression"):
+      for label, start, end in meta.get(kind + "_groups", []):
+        areas.setdefault(label, {})[kind] = (start, end)
+    self._area_ranges = areas
+    self._area_checks = {}
+
+    box = QtWidgets.QGroupBox(
+        "Area Randomize  (masked: only checked regions change)")
+    v = QtWidgets.QVBoxLayout(box)
+
+    def _nice(label):
+      # "left_eye_region" -> "Left Eye"
+      return label.replace("_region", "").replace("_", " ").title()
+
+    grid = QtWidgets.QGridLayout()
+    per_row = 6
+    for n, label in enumerate(areas):
+      cb = QtWidgets.QCheckBox(_nice(label))
+      kinds = " + ".join(sorted(areas[label]))
+      cb.setToolTip("<b>%s</b><br>Include this region in Area Randomize / "
+                    "Reset (%s modes)." % (_nice(label), kinds))
+      grid.addWidget(cb, n // per_row, n % per_row)
+      self._area_checks[label] = cb
+    v.addLayout(grid)
+
+    row = QtWidgets.QHBoxLayout()
+    all_btn = QtWidgets.QPushButton("All")
+    all_btn.setFixedWidth(44)
+    all_btn.clicked.connect(lambda: self._set_all_areas(True))
+    none_btn = QtWidgets.QPushButton("None")
+    none_btn.setFixedWidth(48)
+    none_btn.clicked.connect(lambda: self._set_all_areas(False))
+    rid_btn = QtWidgets.QPushButton("Randomize Identity")
+    rid_btn.setToolTip(
+        "<b>Randomize identity in checked areas</b><br>Draw new random values "
+        "for ONLY the checked regions' identity modes, scaled by 'random "
+        "scale'. Unchecked regions keep their current shape.")
+    icons.decorate(rid_btn, "dice", 15)
+    rid_btn.clicked.connect(lambda: self._randomize_areas("identity"))
+    rex_btn = QtWidgets.QPushButton("Randomize Expression")
+    rex_btn.setToolTip(
+        "<b>Randomize expression in checked areas</b><br>Same mask applied to "
+        "the expression modes. Honors the Symmetry (L/R) toggle.")
+    icons.decorate(rex_btn, "dice", 15)
+    rex_btn.clicked.connect(lambda: self._randomize_areas("expression"))
+    rst_btn = QtWidgets.QPushButton("Reset Areas")
+    rst_btn.setToolTip(
+        "<b>Reset checked areas</b><br>Zero the checked regions' identity AND "
+        "expression modes; everything else is untouched.")
+    icons.decorate(rst_btn, "restart", 15)
+    rst_btn.clicked.connect(self._reset_areas)
+    row.addWidget(all_btn)
+    row.addWidget(none_btn)
+    row.addStretch(1)
+    row.addWidget(rid_btn)
+    row.addWidget(rex_btn)
+    for w in self._make_scale_controls():
+      row.addWidget(w)
+    row.addWidget(rst_btn)
+    v.addLayout(row)
+    return box
+
+  def _set_all_areas(self, on):
+    for cb in self._area_checks.values():
+      cb.setChecked(bool(on))
+
+  def _checked_areas(self):
+    return [label for label, cb in self._area_checks.items() if cb.isChecked()]
+
+  def _randomize_areas(self, kind):
+    """Randomize only the checked regions' ``kind`` coefficients."""
+    if not self.head:
+      return
+    labels = self._checked_areas()
+    if not labels:
+      self.status.setText("Area Randomize: no areas checked.")
+      return
+    ranges = [(label, self._area_ranges[label][kind]) for label in labels
+              if kind in self._area_ranges[label]]
+    if not ranges:
+      self.status.setText("Checked areas have no %s modes." % kind)
+      return
+    try:
+      for _label, (start, end) in ranges:
+        self.head.randomize_range(kind, start, end, scale=self._scale_value,
+                                  seed=self._rand_seed(),
+                                  symmetric=self._symmetry, update=False)
+      self.head.refresh()
+      self._sync_sliders_from_head()
+      mc.select(self.head.transform, replace=True)
+      self.status.setText("Randomized %s areas: %s (scale=%.2f)."
+                          % (kind, ", ".join(l for l, _r in ranges),
+                             self._scale_value))
+    except Exception as e:
+      self._show_error("Area randomize failed", e)
+
+  def _reset_areas(self):
+    """Zero the checked regions (identity + expression), leave the rest."""
+    if not self.head:
+      return
+    labels = self._checked_areas()
+    if not labels:
+      self.status.setText("Reset Areas: no areas checked.")
+      return
+    try:
+      for kind in ("identity", "expression"):
+        idxs = []
+        for label in labels:
+          if kind in self._area_ranges[label]:
+            start, end = self._area_ranges[label][kind]
+            idxs.extend(range(start, end + 1))
+        if idxs:
+          self.head.clear(kind, idxs)
+      self._sync_sliders_from_head()
+      self.status.setText("Reset areas: %s." % ", ".join(labels))
+    except Exception as e:
+      self._show_error("Area reset failed", e)
 
   # --- blend actions -------------------------------------------------------
 
