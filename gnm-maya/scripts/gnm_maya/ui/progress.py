@@ -7,6 +7,12 @@ headless tests and scripts run unchanged.
     for i, item in enumerate(items):
       p.set(i, "target %s" % item)
       ...
+
+The window is force-painted when it opens and on every update. A progress
+window created right before a long, main-thread blocking call (e.g. the
+first-run download during drag-and-drop install) otherwise shows up blank
+white, because Maya's Qt event loop never gets a turn to paint it before the
+work starts. Pumping the event queue a few times gives it that turn.
 """
 
 from __future__ import annotations
@@ -16,6 +22,25 @@ import logging
 from maya import cmds as mc
 
 logger = logging.getLogger(__name__)
+
+
+def _pump(times=3):
+  """Let Qt paint/layout the progress window before we block the main thread."""
+  try:
+    from PySide6 import QtWidgets
+  except ImportError:
+    try:
+      from PySide2 import QtWidgets
+    except ImportError:
+      QtWidgets = None
+  app = QtWidgets.QApplication.instance() if QtWidgets else None
+  for _ in range(max(1, times)):
+    try:
+      mc.refresh(force=True)
+    except Exception:
+      pass
+    if app is not None:
+      app.processEvents()
 
 
 class MayaProgress(object):
@@ -28,8 +53,11 @@ class MayaProgress(object):
   def __enter__(self):
     if self.enabled:
       try:
-        mc.progressWindow(title=self.title, status=self.title, min=0,
+        mc.progressWindow(title=self.title, status="%s…" % self.title, min=0,
                             max=self.maximum, progress=0, isInterruptable=False)
+        # Give the freshly-created window room to actually paint before the
+        # caller starts blocking the main thread (otherwise it shows white).
+        _pump()
       except Exception:
         self.enabled = False
     return self
@@ -42,7 +70,7 @@ class MayaProgress(object):
       if status:
         kwargs["status"] = status
       mc.progressWindow(**kwargs)
-      mc.refresh(suspend=False)
+      _pump(times=1)  # repaint the new value/status before we block again
     except Exception:
       pass
 
