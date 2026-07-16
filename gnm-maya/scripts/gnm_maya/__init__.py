@@ -20,7 +20,7 @@ __all__ = ["generate_head", "generate_template", "show_ui", "show_licenses",
            "add_shelf_button", "check_updates", "check_tool_updates",
            "run_gui_test", "logger"]
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 def _configure_logger():

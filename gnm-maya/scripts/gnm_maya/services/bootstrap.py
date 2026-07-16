@@ -1,25 +1,34 @@
-"""First-run bootstrap: download everything that is downloadable.
+"""First-run bootstrap: set up everything that is fetched/built on demand.
 
-The repo ships only code + docs. Two heavyweight pieces are fetched on demand
+The repo ships only code + docs. Two heavyweight pieces are produced on demand
 (same pattern as the photo-fitting deps):
 
-  runtime/            portable CPython 3.11.9 (python.org, ~11 MB) + pip
-                      (get-pip.py) + the core wheels (numpy/h5py/etils/...)
+  runtime/            the module's own Python 3 with numpy/h5py/etils/...
+                      - Windows: portable embeddable CPython 3.11.9
+                        (python.org, ~11 MB) + pip via get-pip.py
+                      - Linux/macOS: a venv built from the system ``python3``
+                        (or Maya's own mayapy as a fallback)
   external/gnm_repo/  the google/GNM repo zip (~40 MB) via the updater
 
 Everything installs inside the module folder; nothing touches the system.
+(The posix venv references the host interpreter it was built from — if you
+move the module folder afterwards, delete ``runtime/`` and let it rebuild.)
 """
 
 from __future__ import annotations
 
+import glob
 import logging
 import os
 import subprocess
+import sys
 import urllib.request
 
 from gnm_maya.core import config
 
 logger = logging.getLogger(__name__)
+
+IS_WINDOWS = os.name == "nt"
 
 PY_VER = "3.11.9"
 EMBED_URL = ("https://www.python.org/ftp/python/%s/"
@@ -36,11 +45,36 @@ _PTH = "python311.zip\n.\nLib\\site-packages\n\nimport site\n"
 RUNTIME_DIR = os.path.join(config.MODULE_ROOT, "runtime")
 GNM_REPO_DIR = os.path.join(config.EXTERNAL_DIR, "gnm_repo")
 
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if IS_WINDOWS else 0
+
+
+def runtime_python():
+  """The bundled runtime's interpreter path for this platform (may not exist
+  yet — this is where the bootstrap puts it)."""
+  if IS_WINDOWS:
+    return os.path.join(RUNTIME_DIR, "python.exe")
+  for name in ("python3", "python"):  # venv creates both; prefer python3
+    p = os.path.join(RUNTIME_DIR, "bin", name)
+    if os.path.isfile(p):
+      return p
+  return os.path.join(RUNTIME_DIR, "bin", "python3")
+
+
+def site_packages_dirs():
+  """Candidate site-packages dirs inside the runtime (existing ones only)."""
+  if IS_WINDOWS:
+    dirs = [os.path.join(RUNTIME_DIR, "Lib", "site-packages")]
+  else:  # venv layout: lib/python3.X/site-packages
+    dirs = glob.glob(os.path.join(RUNTIME_DIR, "lib", "python3*",
+                                  "site-packages"))
+  return [d for d in dirs if os.path.isdir(d)]
+
 
 def runtime_available():
-  py = os.path.join(RUNTIME_DIR, "python.exe")
-  numpy_dir = os.path.join(RUNTIME_DIR, "Lib", "site-packages", "numpy")
-  return os.path.isfile(py) and os.path.isdir(numpy_dir)
+  if not os.path.isfile(runtime_python()):
+    return False
+  return any(os.path.isdir(os.path.join(d, "numpy"))
+             for d in site_packages_dirs())
 
 
 def gnm_repo_available():
@@ -78,10 +112,38 @@ def _download(url, timeout=300):
     return r.read()
 
 
-def ensure_runtime(status=lambda msg: None):
-  """Download + assemble the portable runtime if it is missing."""
-  if runtime_available():
-    return False
+def _run(cmd, what):
+  r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                     universal_newlines=True, creationflags=_NO_WINDOW)
+  if r.returncode != 0:
+    raise RuntimeError("%s failed:\n%s" % (what, r.stdout[-1500:]))
+  return r
+
+
+def _host_python():
+  """A Python 3.9+ on this machine that can create the module's venv.
+
+  Prefers a system ``python3``; falls back to the interpreter we are running
+  in (mayapy — Maya ships a full CPython that can build venvs).
+  """
+  import shutil
+  for name in ("python3", "python"):
+    exe = shutil.which(name)
+    if not exe:
+      continue
+    try:
+      r = subprocess.run(
+          [exe, "-c", "import sys; print(sys.version_info[:2] >= (3, 9))"],
+          stdout=subprocess.PIPE, universal_newlines=True, timeout=15)
+      if r.stdout.strip() == "True":
+        return exe
+    except Exception:
+      continue
+  return sys.executable  # mayapy
+
+
+def _ensure_runtime_windows(status):
+  """Portable embeddable CPython: self-contained, relocatable, no host deps."""
   import io
   import zipfile
 
@@ -93,28 +155,52 @@ def ensure_runtime(status=lambda msg: None):
   with open(os.path.join(RUNTIME_DIR, "python311._pth"), "w") as f:
     f.write(_PTH)
 
-  py = os.path.join(RUNTIME_DIR, "python.exe")
-  creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+  py = runtime_python()
 
   status("Installing pip…")
   get_pip = os.path.join(RUNTIME_DIR, "get-pip.py")
   with open(get_pip, "wb") as f:
     f.write(_download(GET_PIP_URL))
-  r = subprocess.run([py, get_pip, "--no-warn-script-location"],
-                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                     universal_newlines=True, creationflags=creationflags)
-  if r.returncode != 0:
-    raise RuntimeError("get-pip failed:\n%s" % r.stdout[-1500:])
+  _run([py, get_pip, "--no-warn-script-location"], "get-pip")
   os.remove(get_pip)
 
   status("Installing core packages (numpy, h5py, …)…")
   site = os.path.join(RUNTIME_DIR, "Lib", "site-packages")
-  r = subprocess.run([py, "-m", "pip", "install", "--target", site,
-                      *CORE_PACKAGES],
-                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                     universal_newlines=True, creationflags=creationflags)
-  if r.returncode != 0:
-    raise RuntimeError("pip install failed:\n%s" % r.stdout[-1500:])
+  _run([py, "-m", "pip", "install", "--target", site, *CORE_PACKAGES],
+       "pip install")
+
+
+def _ensure_runtime_posix(status):
+  """Linux/macOS: a venv inside the module, built from a host python3.
+
+  There is no official embeddable CPython for posix, so a venv is the
+  contained equivalent: all packages live under ``runtime/``; only the
+  interpreter itself is referenced from the host.
+  """
+  host = _host_python()
+  status("Creating Python environment (venv)…")
+  try:
+    _run([host, "-m", "venv", RUNTIME_DIR], "venv creation")
+  except RuntimeError as e:
+    raise RuntimeError(
+        "Could not create the module's Python environment with %r.\n"
+        "On Linux, install your distro's python3-venv package and retry.\n\n%s"
+        % (host, e))
+
+  py = runtime_python()
+  status("Installing core packages (numpy, h5py, …)…")
+  _run([py, "-m", "pip", "install", "--upgrade", "pip"], "pip upgrade")
+  _run([py, "-m", "pip", "install", *CORE_PACKAGES], "pip install")
+
+
+def ensure_runtime(status=lambda msg: None):
+  """Build/download the module's own Python runtime if it is missing."""
+  if runtime_available():
+    return False
+  if IS_WINDOWS:
+    _ensure_runtime_windows(status)
+  else:
+    _ensure_runtime_posix(status)
   logger.info("Runtime bootstrapped at %s", RUNTIME_DIR)
   return True
 
@@ -136,13 +222,12 @@ def ensure_gallery(status=lambda msg: None):
   if gallery_available():
     return False
   status("Rendering shape images (one time, ~5 min)…")
-  py = os.path.join(RUNTIME_DIR, "python.exe")
+  py = runtime_python()
   script = os.path.join(config.EXTERNAL_DIR, "gen_gallery.py")
-  creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
   r = subprocess.run([py, script, "--out", GALLERY_DIR,
                       "--modes-per-group", "400"],
                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                     universal_newlines=True, creationflags=creationflags)
+                     universal_newlines=True, creationflags=_NO_WINDOW)
   if r.returncode != 0:
     logger.warning("Gallery generation failed (panel works without images):\n%s",
                    r.stdout[-1000:])
@@ -168,7 +253,9 @@ def ensure_all_with_dialog():
   from maya import cmds as mc
   missing = []
   if not runtime_available():
-    missing.append("portable Python runtime (~70 MB download)")
+    missing.append("portable Python runtime (~70 MB download)" if IS_WINDOWS
+                   else "Python environment (venv from your python3, "
+                        "~40 MB of packages)")
   if not gnm_repo_available():
     missing.append("google/GNM model repo (~40 MB download)")
   if not gallery_available():

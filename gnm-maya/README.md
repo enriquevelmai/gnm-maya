@@ -27,9 +27,15 @@ the model resident so each edit resolves in ~15 ms (vs ~0.5 s if the model
 reloaded per change); Maya updates only the vertex positions (topology is
 fixed). `external/generate.py` remains for one-shot/batch use.
 
-The bundled interpreter is a **portable embeddable CPython** (`runtime/`), not a
-venv, so it runs on any Windows machine **with no Python install** and is
-**Maya-version agnostic** (2022–2027+) with no ABI concerns.
+The bundled interpreter (`runtime/`) is **Maya-version agnostic** (2022–2027+)
+with no ABI concerns:
+
+- **Windows** — a portable embeddable CPython: self-contained and relocatable,
+  runs **with no Python install** on the machine.
+- **Linux/macOS** — there is no embeddable CPython, so a **venv inside the
+  module** is built on first run from your `python3` (3.9+; Maya's own Python
+  is the fallback). All packages stay under `runtime/`; if you move the module
+  folder later, delete `runtime/` and it rebuilds on next launch.
 
 ```
 drag_and_drop_install.py    <- drag into Maya to install (at the repo top)
@@ -44,32 +50,47 @@ gnm-maya/                   <- the Maya module (docs included)
   external/
     server.py / generate.py <- run inside the downloaded runtime
     gnm_repo/                <- google/GNM repo (downloaded on first run)
-  runtime/                  <- portable Python (downloaded on first run)
+  runtime/                  <- module's own Python (set up on first run)
   build_module.py           <- dev: rebuilds runtime/ without the dialog
 ```
 
-## Install (Windows)
+## Install (Windows / Linux / macOS)
 
 **Easiest — drag and drop:**
 
 1. Download this repo (Code ▸ Download ZIP) and extract it anywhere.
 2. Drag `drag_and_drop_install.py` (at the top of the extracted folder) from
-   Explorer into a running Maya viewport.
+   your file browser into a running Maya viewport.
 
 It **copies the module into `~/Documents/maya/modules/gnm-maya`** and registers
 it — so afterwards you can **delete the downloaded zip and the extracted
 folder**. It then adds the **GNM** menu + shelf button and runs the
 **first-run setup**: the repo ships code + compact preview images only, so the
-portable Python runtime (~70 MB) and the google/GNM model repo (~40 MB) are
-downloaded once into the installed module, and the full-quality shape images
-are rendered locally (~5 min, one time). After that everything runs offline.
-(Photo fitting adds an optional ~290 MB MediaPipe/OpenCV download on first use.)
+Python runtime (Windows: ~70 MB portable download; Linux/macOS: a venv built
+from your `python3`) and the google/GNM model repo (~40 MB) are set up once
+inside the installed module, and the full-quality shape images are rendered
+locally (~5 min, one time). After that everything runs offline. (Photo fitting
+adds an optional ~290 MB MediaPipe/OpenCV download on first use.)
 
 **Manual alternative — copy into your modules folder:** copy both `GNM.mod` and
-the `gnm-maya/` folder into `C:\Users\<you>\Documents\maya\modules\`, then
-restart Maya; opening the panel offers the same first-run setup.
+the `gnm-maya/` folder into `~/Documents/maya/modules/` (Windows:
+`C:\Users\<you>\Documents\maya\modules\`), then restart Maya; opening the
+panel offers the same first-run setup.
+
+Per-platform notes:
+
+- **Windows** — nothing else needed; the runtime is fully self-contained.
+- **Linux** — needs `python3` (3.9+) with the `venv` module (Debian/Ubuntu:
+  `sudo apt install python3-venv`). If none is found, Maya's own `mayapy` is
+  used to build the venv.
+- **macOS** — needs `python3` (3.9+); the Xcode Command Line Tools or a
+  Homebrew Python both work, and `mayapy` is the fallback here too.
+- Photo fitting (MediaPipe/OpenCV) was validated on Windows; on Linux/macOS
+  the same pip install is attempted and any failure is reported in a dialog —
+  everything else works without it.
 
 > Dev rebuild of the runtime without the dialog: `py -3.11 gnm-maya/build_module.py`
+> (Windows) or `python3 gnm-maya/build_module.py` (Linux/macOS)
 
 ## Use
 

@@ -9,7 +9,9 @@ manifest.json the Maya UI can use for slider tooltips.
 
 Run with the module runtime (needs numpy; h5py for semantic shapes):
 
-  ./runtime/python.exe external/gen_gallery.py --out docs/shapes \
+  # Windows:      runtime\python.exe
+  # Linux/macOS:  runtime/bin/python3
+  <runtime-python> external/gen_gallery.py --out docs/shapes \
       [--size 192] [--modes-per-group 12]
 """
 

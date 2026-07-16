@@ -20,13 +20,16 @@ GENERATE_SCRIPT = os.path.join(EXTERNAL_DIR, "generate.py")
 def venv_python() -> str:
   """Absolute path to the module's bundled Python interpreter.
 
-  Prefers the self-contained ``runtime/`` (portable embeddable Python, shipped
-  for plug-and-play). Falls back to a locally-built ``venv/`` if present.
+  Prefers the self-contained ``runtime/`` (Windows: portable embeddable
+  Python; Linux/macOS: a venv built on first run). Falls back to a
+  locally-built ``venv/`` if present.
   """
   candidates = [
-      os.path.join(MODULE_ROOT, "runtime", "python.exe"),          # portable
+      os.path.join(MODULE_ROOT, "runtime", "python.exe"),          # win portable
+      os.path.join(MODULE_ROOT, "runtime", "bin", "python3"),      # posix venv
+      os.path.join(MODULE_ROOT, "runtime", "bin", "python"),
       os.path.join(MODULE_ROOT, "venv", "Scripts", "python.exe"),  # dev venv
-      os.path.join(MODULE_ROOT, "venv", "bin", "python"),          # posix venv
+      os.path.join(MODULE_ROOT, "venv", "bin", "python"),
   ]
   for c in candidates:
     if os.path.isfile(c):

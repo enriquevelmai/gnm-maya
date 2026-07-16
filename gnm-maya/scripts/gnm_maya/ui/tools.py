@@ -233,10 +233,13 @@ def open_shape_gallery():
   if page:
     webbrowser.open("file:///" + page.replace("\\", "/"))
     return page
+  runtime_py = ("runtime\\python.exe" if os.name == "nt"
+                else "runtime/bin/python3")
   mc.confirmDialog(
-      title="Shape Gallery",
+      title="Shape Gallery", icon="warning",
       message="Gallery not generated yet. From the gnm-maya folder run:\n"
-              "runtime\\python.exe external\\gen_gallery.py --out docs\\shapes",
+              "%s external%sgen_gallery.py --out docs%sshapes"
+              % (runtime_py, os.sep, os.sep),
       button=["OK"])
   return None
 

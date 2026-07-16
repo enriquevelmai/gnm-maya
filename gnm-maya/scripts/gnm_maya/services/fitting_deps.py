@@ -26,19 +26,24 @@ _PACKAGES = [
 ]
 
 
-def _site_packages():
-  return os.path.join(config.MODULE_ROOT, "runtime", "Lib", "site-packages")
-
-
 def available():
   """True if the fitting stack is importable from the runtime."""
-  return os.path.isdir(os.path.join(_site_packages(), "mediapipe"))
+  from gnm_maya.services import bootstrap
+  return any(os.path.isdir(os.path.join(d, "mediapipe"))
+             for d in bootstrap.site_packages_dirs())
 
 
 def install():
   """Install the fitting deps into the runtime (~290 MB download). Blocking."""
+  from gnm_maya.services import bootstrap
   py = config.venv_python()
-  cmd = [py, "-m", "pip", "install", "--target", _site_packages(), *_PACKAGES]
+  if os.name == "nt":
+    # Embeddable runtime: install into its site-packages explicitly.
+    site = os.path.join(config.MODULE_ROOT, "runtime", "Lib", "site-packages")
+    cmd = [py, "-m", "pip", "install", "--target", site, *_PACKAGES]
+  else:
+    # Posix venv: pip already targets the venv's own site-packages.
+    cmd = [py, "-m", "pip", "install", *_PACKAGES]
   logger.info("Installing photo-fitting deps: %s", " ".join(cmd))
   creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
   proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

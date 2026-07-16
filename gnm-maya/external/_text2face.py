@@ -9,7 +9,7 @@ http://localhost:11434 with a short timeout; `ollama_parse` asks whatever
 model is installed to emit the same structure as strict JSON. Any failure
 raises, so callers fall back to the lexicon. `describe` glues both together.
 
-Runs in the module runtime (embeddable CPython), never in mayapy. HTTP is
+Runs in the module runtime, never in mayapy. HTTP is
 stdlib urllib only — no new packages.
 """
 

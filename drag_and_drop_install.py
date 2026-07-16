@@ -62,9 +62,17 @@ def _write_mod(module_root, modules_dir):
 
 
 def _copy_module(src_root, dst_root):
-  """Copy the module into the modules folder (skipping caches/scratch)."""
-  ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "_out*", "_sess*",
-                                  "_buildtest", ".git")
+  """Copy the module into the modules folder (skipping caches/scratch).
+
+  On Linux/macOS the runtime is a venv whose internals hardcode its absolute
+  path, so a copied venv would be broken — skip it and let the first-run
+  bootstrap rebuild it in place. (The Windows runtime is a relocatable
+  embeddable Python and is carried along to avoid a re-download.)
+  """
+  patterns = ["__pycache__", "*.pyc", "_out*", "_sess*", "_buildtest", ".git"]
+  if os.name != "nt":
+    patterns.append("runtime")
+  ignore = shutil.ignore_patterns(*patterns)
   shutil.copytree(src_root, dst_root, ignore=ignore, dirs_exist_ok=True)
 
 
