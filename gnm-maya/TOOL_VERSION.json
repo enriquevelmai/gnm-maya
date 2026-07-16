@@ -1,6 +1,8 @@
 {
   "repo": "enriquevelmai/gnm-maya",
   "branch": "master",
+  "channel": "release",
+  "tag": "v1.0.0",
   "sha": null,
-  "date": null
+  "date": "2026-07-16"
 }

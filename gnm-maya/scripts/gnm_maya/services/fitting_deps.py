@@ -83,5 +83,6 @@ def install_with_dialog():
     logger.exception("fitting deps install failed")
     msg = "Install failed:\n%s" % e
     ok = False
-  mc.confirmDialog(title="GNM Photo Fitting", message=msg, button=["OK"])
+  mc.confirmDialog(title="GNM Photo Fitting", message=msg, button=["OK"],
+                   icon="information" if ok else "critical")
   return ok

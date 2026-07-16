@@ -6,6 +6,7 @@ operate on the panel's head when one exists, else on a selected/any GNM head.
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 
@@ -23,6 +24,25 @@ logger = logging.getLogger(__name__)
 
 def _run(dlg):
   return (getattr(dlg, "exec_", None) or dlg.exec)()
+
+
+def _report_errors(context):
+  """Decorator for menu/shelf entry points: any exception becomes a critical
+  message box (the Script Editor still gets the full traceback), so failures
+  never end as a silent stack trace the user does not see."""
+  def deco(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+      try:
+        return fn(*args, **kwargs)
+      except Exception as e:
+        logger.exception("%s failed", context)
+        QtWidgets.QMessageBox.critical(
+            None, "GNM — %s failed" % context,
+            "%s\n\nSee the Script Editor for the full traceback." % e)
+        return None
+    return wrapper
+  return deco
 
 
 def _current_head():
@@ -88,7 +108,8 @@ def preset_browser():
       presets.save_preset(_current_head(), name.strip())
       refresh()
     except Exception as e:
-      QtWidgets.QMessageBox.warning(dlg, "Save failed", str(e))
+      logger.exception("preset save failed")
+      QtWidgets.QMessageBox.critical(dlg, "Save failed", str(e))
 
   def do_load():
     it = listw.currentItem()
@@ -97,7 +118,8 @@ def preset_browser():
     try:
       presets.load_preset(_current_head(), it.text())
     except Exception as e:
-      QtWidgets.QMessageBox.warning(dlg, "Load failed", str(e))
+      logger.exception("preset load failed")
+      QtWidgets.QMessageBox.critical(dlg, "Load failed", str(e))
 
   def do_delete():
     it = listw.currentItem()
@@ -107,7 +129,8 @@ def preset_browser():
       presets.delete_preset(it.text())
       refresh()
     except Exception as e:
-      QtWidgets.QMessageBox.warning(dlg, "Delete failed", str(e))
+      logger.exception("preset delete failed")
+      QtWidgets.QMessageBox.critical(dlg, "Delete failed", str(e))
 
   def do_folder():
     from gnm_maya.core import settings
@@ -129,6 +152,7 @@ def preset_browser():
 
 # --- crowd -------------------------------------------------------------------
 
+@_report_errors("Generate Crowd")
 def crowd_dialog():
   from gnm_maya.scene import crowd
 
@@ -165,12 +189,13 @@ def crowd_dialog():
 
 # --- fbx / landmarks ----------------------------------------------------------
 
+@_report_errors("Export FBX")
 def export_selected_fbx():
   from gnm_maya.scene import export_fbx
   from gnm_maya.core import settings
   sel = mc.ls(selection=True) or []
   if not sel:
-    mc.confirmDialog(title="Export FBX",
+    mc.confirmDialog(title="Export FBX", icon="warning",
                        message="Select a baked GNM rig first.", button=["OK"])
     return
   # Let the user pick the destination (folder remembered across sessions).
@@ -204,6 +229,7 @@ def open_shape_gallery():
   return None
 
 
+@_report_errors("Create Landmarks")
 def create_landmarks():
   from gnm_maya.scene import landmarks
   grp = landmarks.create_landmark_locators(_current_head())
@@ -211,11 +237,13 @@ def create_landmarks():
   return grp
 
 
+@_report_errors("Update Landmarks")
 def update_landmarks():
   from gnm_maya.scene import landmarks
   landmarks.update_landmark_locators(_current_head())
 
 
+@_report_errors("Fit Head to Locators")
 def fit_head_to_landmarks():
   """Reshape the head so its landmarks match the edited locators."""
   from gnm_maya.scene import landmarks
@@ -233,6 +261,7 @@ def fit_head_to_landmarks():
   return name
 
 
+@_report_errors("Landmark Mirror")
 def toggle_landmark_mirror():
   """Toggle L<->R mirrored landmark editing (returns new state)."""
   from gnm_maya.scene import landmarks

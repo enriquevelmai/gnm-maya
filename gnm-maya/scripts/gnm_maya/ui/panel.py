@@ -175,12 +175,33 @@ class GnmPanel(QtWidgets.QWidget):
         self.head = GnmHead()
         self.status.setText("Head: %s" % self.head.transform)
     except Exception as e:
-      logger.exception("Failed to build GNM head")
-      self.status.setText("Error building head: %s" % e)
+      self._show_error("Failed to build GNM head", e)
 
     self.populate_ui()
     self.register_controllers()
     self._sync_sliders_from_head()
+
+  # --- error reporting -------------------------------------------------------
+
+  def _show_error(self, context, err):
+    """Surface a caught error: log the traceback, show it in the status bar,
+    and pop a critical message box so the user always knows what happened.
+
+    The same message is not re-popped back-to-back — a failing slider drag
+    fires the identical error dozens of times and one dialog is enough (the
+    status bar and Script Editor still show every occurrence).
+    """
+    logger.exception(context)
+    msg = str(err) or err.__class__.__name__
+    self.status.setText("Error: %s" % msg)
+    key = (context, msg)
+    if key == getattr(self, "_last_error", None):
+      return
+    self._last_error = key
+    QtWidgets.QMessageBox.critical(
+        self, "GNM — %s" % context,
+        "%s\n\n%s\n\nSee the Script Editor for the full traceback."
+        % (context, msg))
 
   # --- layout --------------------------------------------------------------
 
@@ -488,8 +509,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Sampled identity: %s / %s" % (
           self.sem_gender.currentText(), self.sem_ethnicity.currentText()))
     except Exception as e:
-      logger.exception("sample identity failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Sample identity failed", e)
 
   def _apply_description(self):
     if not self.head:
@@ -509,8 +529,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Described (%s): %s" % (
           parsed.get("source", "?"), picks or "identity only"))
     except Exception as e:
-      logger.exception("describe failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Describe failed", e)
 
   def _sample_expression(self):
     if not self.head:
@@ -523,8 +542,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Sampled expression: %s"
                           % self.sem_expr.currentText())
     except Exception as e:
-      logger.exception("sample expression failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Sample expression failed", e)
 
   def _coeff_tab(self, groups, kind):
     container = QtWidgets.QWidget()
@@ -632,8 +650,7 @@ class GnmPanel(QtWidgets.QWidget):
       elif self.head:
         self.head.refresh()
     except Exception as e:
-      logger.exception("throttled action failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Slider update failed", e)
 
   def _on_coeff(self, kind, idx, value):
     if not self.head:
@@ -650,8 +667,7 @@ class GnmPanel(QtWidgets.QWidget):
             self._expr_sliders[j].set_value_silent(value)
       self._schedule_refresh()
     except Exception as e:
-      logger.exception("coefficient edit failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Coefficient edit failed", e)
 
   def _on_pose(self, joint, axis, value):
     if not self.head:
@@ -664,8 +680,7 @@ class GnmPanel(QtWidgets.QWidget):
           self._pose_sliders[(mj, ax)].set_value_silent(value)
       self._schedule_refresh()
     except Exception as e:
-      logger.exception("pose edit failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Pose edit failed", e)
 
   def _on_translation(self, axis, value):
     if not self.head:
@@ -674,8 +689,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.head.set_translation(axis, value, update=False)
       self._schedule_refresh()
     except Exception as e:
-      logger.exception("translation edit failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Translation edit failed", e)
 
   # --- per-tab actions -----------------------------------------------------
 
@@ -699,8 +713,7 @@ class GnmPanel(QtWidgets.QWidget):
                           % (kind, scale, ", symmetric" if self._symmetry
                              and kind == "expression" else ""))
     except Exception as e:
-      logger.exception("randomize %s failed", kind)
-      self.status.setText("Error: %s" % e)
+      self._show_error("Randomize %s failed" % kind, e)
 
   def _reset_kind(self, kind):
     if not self.head:
@@ -713,8 +726,7 @@ class GnmPanel(QtWidgets.QWidget):
       self._sync_sliders_from_head()
       self.status.setText("Reset %s." % kind)
     except Exception as e:
-      logger.exception("reset %s failed", kind)
-      self.status.setText("Error: %s" % e)
+      self._show_error("Reset %s failed" % kind, e)
 
   def _randomize_pose(self):
     if not self.head:
@@ -728,8 +740,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Randomized pose%s."
                           % (" (symmetric)" if self._symmetry else ""))
     except Exception as e:
-      logger.exception("randomize pose failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Randomize pose failed", e)
 
   def _reset_pose(self):
     if not self.head:
@@ -739,8 +750,7 @@ class GnmPanel(QtWidgets.QWidget):
       self._sync_sliders_from_head()
       self.status.setText("Reset pose.")
     except Exception as e:
-      logger.exception("reset pose failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Reset pose failed", e)
 
   def _reset_translation(self):
     if not self.head:
@@ -750,8 +760,7 @@ class GnmPanel(QtWidgets.QWidget):
       self._sync_sliders_from_head()
       self.status.setText("Reset translation.")
     except Exception as e:
-      logger.exception("reset translation failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Reset translation failed", e)
 
   # --- shared / global actions ---------------------------------------------
 
@@ -775,8 +784,7 @@ class GnmPanel(QtWidgets.QWidget):
         material.set_viewport_textured(False)
         self.status.setText("Texture removed.")
     except Exception as e:
-      logger.exception("texture toggle failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Texture toggle failed", e)
       self.tex_chk.blockSignals(True)
       self.tex_chk.setChecked(False)
       self.tex_chk.blockSignals(False)
@@ -853,8 +861,7 @@ class GnmPanel(QtWidgets.QWidget):
       name = rig.bake_rig(self.head, num_modes=num_modes, semantic=semantic)
       self.status.setText("Baked rig: %s (sliders + joints)" % name)
     except Exception as e:
-      logger.exception("bake rig failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Bake Rig failed", e)
 
   def _busy_status(self, msg):
     self.status.setText(msg)
@@ -882,8 +889,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Fitted identity from photo (likeness, front-view "
                           "modes only).")
     except Exception as e:
-      logger.exception("photo fit failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Fit from Photo failed", e)
 
   def _clear_range(self, kind, start, end):
     """Zero a contiguous coefficient range (used by a group's Reset button)."""
@@ -894,8 +900,7 @@ class GnmPanel(QtWidgets.QWidget):
       logger.info("Reset %s group [%d..%d]", kind, start, end)
       self.status.setText("Reset %s group." % kind)
     except Exception as e:
-      logger.exception("group reset failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Group reset failed", e)
 
   def _selected_gnm_heads(self):
     return [n for n in (mc.ls(selection=True, long=False) or [])
@@ -920,8 +925,7 @@ class GnmPanel(QtWidgets.QWidget):
       logger.info("Reset %s", keep)
       self.status.setText("Reset: %s" % ", ".join(keep))
     except Exception as e:
-      logger.exception("reset failed")
-      self.status.setText("Error: %s" % e)
+      self._show_error("Reset failed", e)
 
 
 def _open_progress(parent, text):
@@ -1013,7 +1017,7 @@ def _check_updates_async_generic(mod, display_name, menu_hint):
         latest = mod.download_and_install()
       except Exception as e:
         mc.waitCursor(state=False)
-        mc.confirmDialog(title="%s Update" % display_name,
+        mc.confirmDialog(title="%s Update" % display_name, icon="critical",
                            message="Update failed:\n%s" % e, button=["OK"])
         return
       mc.waitCursor(state=False)
@@ -1062,6 +1066,12 @@ def show():
     dlg.setLabelText("Building panel…")
     QtWidgets.QApplication.processEvents()
     _WINDOW = GnmPanel(parent=parent, adopt_transform=target)
+  except Exception as e:
+    logger.exception("Failed to open the GNM panel")
+    QtWidgets.QMessageBox.critical(
+        parent, "GNM — Failed to open panel",
+        "%s\n\nSee the Script Editor for the full traceback." % e)
+    return None
   finally:
     dlg.close()
   _WINDOW.show()

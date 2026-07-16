@@ -198,5 +198,6 @@ def ensure_all_with_dialog():
     logger.exception("bootstrap failed")
     ok = False
     msg = "Setup failed:\n%s" % e
-  mc.confirmDialog(title="GNM first-run setup", message=msg, button=["OK"])
+  mc.confirmDialog(title="GNM first-run setup", message=msg, button=["OK"],
+                   icon="information" if ok else "critical")
   return ok

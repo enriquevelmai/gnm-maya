@@ -246,6 +246,15 @@ only speak up when something newer exists):
   tool's code is already loaded in the running Maya, a **restart is required**
   for a tool update to take effect.
 
+  Tool updates follow one of two channels (pick via **Change Channel...** in
+  the update dialog; saved in `TOOL_VERSION.json`):
+
+  - **Releases** (default) — stable, tagged
+    [GitHub Releases](https://github.com/enriquevelmai/gnm-maya/releases)
+    only (e.g. `v1.0.0`).
+  - **Dev** — the tip of the `master` branch by commit id: fixes arrive as
+    soon as they are pushed, before they are packaged in a release.
+
 ## Citation
 
 If you use GNM (via this tool) in your work, please cite the GNM Ecosystem as

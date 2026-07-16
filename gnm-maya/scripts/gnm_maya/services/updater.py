@@ -135,7 +135,7 @@ def show_update_dialog(parent=None):
     info = check()
   except Exception as e:
     logger.exception("update check failed")
-    mc.confirmDialog(title="GNM Update",
+    mc.confirmDialog(title="GNM Update", icon="critical",
                        message="Could not check for updates:\n%s" % e,
                        button=["OK"])
     return
@@ -166,8 +166,8 @@ def show_update_dialog(parent=None):
   except Exception as e:
     logger.exception("update download failed")
     mc.waitCursor(state=False)
-    mc.confirmDialog(title="GNM Update", message="Update failed:\n%s" % e,
-                       button=["OK"])
+    mc.confirmDialog(title="GNM Update", icon="critical",
+                       message="Update failed:\n%s" % e, button=["OK"])
     return
   mc.waitCursor(state=False)
   _post_update_dialog(latest)
@@ -197,8 +197,8 @@ def _post_update_dialog(latest):
       run_gui_test()
     except Exception as e:
       logger.exception("running GUI test failed")
-      mc.confirmDialog(title="GUI Test", message="Could not run test:\n%s" % e,
-                         button=["OK"])
+      mc.confirmDialog(title="GUI Test", icon="critical",
+                         message="Could not run test:\n%s" % e, button=["OK"])
 
 
 def maya_binary():
@@ -218,7 +218,7 @@ def restart_maya():
   binp = maya_binary()
   if not binp:
     mc.confirmDialog(
-        title="Restart Maya",
+        title="Restart Maya", icon="warning",
         message="Couldn't locate the Maya executable (MAYA_LOCATION unset).\n"
                 "Please restart Maya manually.", button=["OK"])
     return
@@ -241,14 +241,15 @@ def restart_maya():
       try:
         mc.file(save=True)
       except Exception as e:
-        mc.confirmDialog(title="Save failed", message=str(e), button=["OK"])
+        mc.confirmDialog(title="Save failed", icon="critical",
+                           message=str(e), button=["OK"])
         return
 
   try:
     subprocess.Popen([binp])
   except Exception as e:
     logger.exception("relaunch failed")
-    mc.confirmDialog(title="Restart Maya",
+    mc.confirmDialog(title="Restart Maya", icon="critical",
                        message="Could not launch a new Maya:\n%s" % e,
                        button=["OK"])
     return

@@ -6,6 +6,13 @@ README/NOTICE, and the shape gallery docs. The installed version is recorded
 in ``TOOL_VERSION.json`` at the module root; update = download the repo zip
 from GitHub and sync its ``gnm-maya/`` subfolder onto the live install.
 
+Two update channels (chosen in the update dialog, saved in TOOL_VERSION.json):
+
+* ``release`` (default) — follows tagged GitHub Releases (e.g. v1.0.0).
+  Stable: only versions the author explicitly published.
+* ``dev`` — follows the tip of the ``master`` branch by commit id. Gets
+  fixes as soon as they are pushed, before they are packaged in a release.
+
 The separately-managed ``runtime/`` and ``external/gnm_repo/`` (and
 ``external/GNM_version.json``) are NEVER touched by this updater — they are
 not even present in the tracked repo zip, since both are gitignored and
@@ -37,6 +44,9 @@ REPO = "enriquevelmai/gnm-maya"
 BRANCH = "master"
 _UA = {"User-Agent": "gnm-maya-tool-updater"}
 
+CHANNEL_RELEASE = "release"  # follow tagged GitHub Releases (default)
+CHANNEL_DEV = "dev"          # follow master-branch commits
+
 _VERSION_FILE = os.path.join(config.MODULE_ROOT, "TOOL_VERSION.json")
 
 # Subfolders that are entirely tool-owned: replaced wholesale (handles
@@ -48,8 +58,10 @@ _REPLACE_DIRS = ("scripts", "tests", "docs")
 _EXTERNAL_PRESERVE = ("gnm_repo", "GNM_version.json", "__pycache__")
 
 
-def short(sha):
-  return (sha or "unknown")[:8]
+def short(version):
+  """Human label for a version: release tags as-is, commit shas truncated."""
+  v = version or "unknown"
+  return v if len(v) <= 12 else v[:8]
 
 
 def installed_info():
@@ -60,29 +72,65 @@ def installed_info():
     return {}
 
 
+def get_channel():
+  ch = installed_info().get("channel")
+  return ch if ch in (CHANNEL_RELEASE, CHANNEL_DEV) else CHANNEL_RELEASE
+
+
+def set_channel(channel):
+  """Persist the update channel in TOOL_VERSION.json (keeps other fields)."""
+  if channel not in (CHANNEL_RELEASE, CHANNEL_DEV):
+    raise ValueError("unknown channel: %r" % channel)
+  info = installed_info()
+  info.setdefault("repo", REPO)
+  info["channel"] = channel
+  with open(_VERSION_FILE, "w") as f:
+    json.dump(info, f, indent=2)
+
+
 def latest_commit(timeout=15):
   url = "https://api.github.com/repos/%s/commits/%s" % (REPO, BRANCH)
   req = urllib.request.Request(url, headers=_UA)
   with urllib.request.urlopen(req, timeout=timeout) as r:
     data = json.load(r)
-  return {"sha": data["sha"], "date": data["commit"]["committer"]["date"]}
+  return {"version": data["sha"],
+          "date": data["commit"]["committer"]["date"],
+          "zip_url": "https://github.com/%s/archive/refs/heads/%s.zip"
+                     % (REPO, BRANCH)}
+
+
+def latest_release(timeout=15):
+  url = "https://api.github.com/repos/%s/releases/latest" % REPO
+  req = urllib.request.Request(url, headers=_UA)
+  with urllib.request.urlopen(req, timeout=timeout) as r:
+    data = json.load(r)
+  tag = data["tag_name"]
+  return {"version": tag,
+          "date": (data.get("published_at") or "")[:10] or None,
+          "zip_url": "https://github.com/%s/archive/refs/tags/%s.zip"
+                     % (REPO, tag)}
 
 
 def check():
-  """Return dict with installed/latest sha+date and update_available.
+  """Return dict with installed/latest version+date and update_available.
 
-  If this install has no ``TOOL_VERSION.json`` (e.g. an older download from
+  ``release`` channel compares release tags; ``dev`` compares commit shas.
+  If this install has no recorded version (e.g. an older download from
   before this feature existed), the update is reported as available so the
   user can bring their copy fully up to date.
   """
+  channel = get_channel()
   inst = installed_info()
-  latest = latest_commit()
+  installed = inst.get("tag") if channel == CHANNEL_RELEASE else inst.get("sha")
+  latest = latest_release() if channel == CHANNEL_RELEASE else latest_commit()
   return {
-      "installed_sha": inst.get("sha"),
-      "installed_date": inst.get("date"),
-      "latest_sha": latest["sha"],
+      "channel": channel,
+      "installed_sha": installed,          # generic "version" (tag or sha);
+      "installed_date": inst.get("date"),  # _sha keys kept for the shared
+      "latest_sha": latest["version"],     # async-check helper in ui.panel
       "latest_date": latest["date"],
-      "update_available": inst.get("sha") != latest["sha"],
+      "zip_url": latest["zip_url"],
+      "update_available": installed != latest["version"],
   }
 
 
@@ -134,11 +182,13 @@ def _sync_top_level(src_root, dst_root):
 
 
 def download_and_install(timeout=180):
-  """Download the repo zip and sync the gnm-maya/ folder onto this install."""
+  """Download the channel's repo zip and sync gnm-maya/ onto this install."""
   if not os.access(config.MODULE_ROOT, os.W_OK):
     raise RuntimeError("Module folder is not writable: %s" % config.MODULE_ROOT)
 
-  url = "https://github.com/%s/archive/refs/heads/%s.zip" % (REPO, BRANCH)
+  channel = get_channel()
+  latest = latest_release() if channel == CHANNEL_RELEASE else latest_commit()
+  url = latest["zip_url"]
   logger.info("Downloading %s ...", url)
   req = urllib.request.Request(url, headers=_UA)
   with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -164,10 +214,11 @@ def download_and_install(timeout=180):
   finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
-  latest = latest_commit()
+  stamp = {"repo": REPO, "branch": BRANCH, "channel": channel,
+           "tag": None, "sha": None, "date": latest["date"]}
+  stamp["tag" if channel == CHANNEL_RELEASE else "sha"] = latest["version"]
   with open(_VERSION_FILE, "w") as f:
-    json.dump({"repo": REPO, "branch": BRANCH,
-               "sha": latest["sha"], "date": latest["date"]}, f, indent=2)
+    json.dump(stamp, f, indent=2)
 
   try:
     from gnm_maya.core import worker
@@ -175,43 +226,77 @@ def download_and_install(timeout=180):
   except Exception:
     pass
 
-  logger.info("Updated gnm-maya tool to %s (%s)", short(latest["sha"]),
+  logger.info("Updated gnm-maya tool to %s (%s)", short(latest["version"]),
               latest["date"])
   return latest
+
+
+def _channel_dialog():
+  """Let the user pick the update channel; returns True if it changed."""
+  from maya import cmds as mc
+
+  current = get_channel()
+  ans = mc.confirmDialog(
+      title="gnm-maya update channel",
+      message=("Choose which updates to follow (current: %s).\n\n"
+               "Releases — stable, published versions only (recommended).\n"
+               "Dev — the latest commits on master, before they are\n"
+               "packaged in a release." % current),
+      button=["Releases (stable)", "Dev (latest commits)", "Cancel"],
+      defaultButton="Releases (stable)",
+      cancelButton="Cancel", dismissString="Cancel")
+  picked = {"Releases (stable)": CHANNEL_RELEASE,
+            "Dev (latest commits)": CHANNEL_DEV}.get(ans)
+  if picked is None or picked == current:
+    return False
+  set_channel(picked)
+  logger.info("gnm-maya update channel set to '%s'", picked)
+  return True
 
 
 def show_update_dialog(parent=None):
   """Interactive check + optional download, via Maya confirm dialogs."""
   from maya import cmds as mc
 
+  channel = get_channel()
   try:
     info = check()
   except Exception as e:
     logger.exception("tool update check failed")
-    mc.confirmDialog(title="gnm-maya Update",
-                       message="Could not check for updates:\n%s" % e,
-                       button=["OK"])
+    mc.confirmDialog(title="gnm-maya Update", icon="critical",
+                     message="Could not check for updates:\n%s" % e,
+                     button=["OK"])
     return
 
   if not info["update_available"]:
-    mc.confirmDialog(
+    ans = mc.confirmDialog(
         title="gnm-maya Update",
         message="You already have the latest gnm-maya tool.\n\nInstalled: "
-                "%s (%s)" % (short(info["installed_sha"]),
-                             info["installed_date"] or "?"),
-        button=["OK"])
+                "%s (%s)\nChannel: %s"
+                % (short(info["installed_sha"]),
+                   info["installed_date"] or "?", channel),
+        button=["OK", "Change Channel..."], defaultButton="OK",
+        cancelButton="OK", dismissString="OK")
+    if ans == "Change Channel..." and _channel_dialog():
+      show_update_dialog(parent)  # re-check against the new channel
     return
 
   ans = mc.confirmDialog(
       title="gnm-maya Update available",
-      message=("A newer gnm-maya tool is available.\n\n"
+      message=("A newer gnm-maya tool is available on the '%s' channel.\n\n"
                "Installed: %s (%s)\nLatest:    %s (%s)\n\n"
                "Download and install now? A Maya restart is required "
                "afterwards for the new code to take effect."
-               % (short(info["installed_sha"]), info["installed_date"] or "?",
+               % (channel,
+                  short(info["installed_sha"]), info["installed_date"] or "?",
                   short(info["latest_sha"]), info["latest_date"])),
-      button=["Download", "Cancel"], defaultButton="Download",
+      button=["Download", "Change Channel...", "Cancel"],
+      defaultButton="Download",
       cancelButton="Cancel", dismissString="Cancel")
+  if ans == "Change Channel...":
+    if _channel_dialog():
+      show_update_dialog(parent)  # re-check against the new channel
+    return
   if ans != "Download":
     return
 
@@ -221,8 +306,8 @@ def show_update_dialog(parent=None):
   except Exception as e:
     logger.exception("tool update download failed")
     mc.waitCursor(state=False)
-    mc.confirmDialog(title="gnm-maya Update",
-                       message="Update failed:\n%s" % e, button=["OK"])
+    mc.confirmDialog(title="gnm-maya Update", icon="critical",
+                     message="Update failed:\n%s" % e, button=["OK"])
     return
   mc.waitCursor(state=False)
   _post_update_dialog(latest)
@@ -242,7 +327,7 @@ def _post_update_dialog(latest):
       "gnm-maya updated to %s (%s).\n\n"
       "This tool's code is already loaded in this Maya session, so the "
       "update will NOT take effect until you restart Maya.\n\n"
-      "Restart now?" % (short(latest["sha"]), latest["date"]))
+      "Restart now?" % (short(latest["version"]), latest["date"]))
   ans = mc.confirmDialog(
       title="gnm-maya updated", message=msg,
       button=["Restart Maya", "Later"],
