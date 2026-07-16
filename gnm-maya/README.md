@@ -37,10 +37,10 @@ GNM.mod                     <- module descriptor (copy this into modules/)
 gnm-maya/                   <- the Maya module (docs included)
   README.md / NOTICE.md     <- this documentation
   docs/shapes/              <- shape gallery images (~1300 renders, included)
-  icons/                    <- Material-style SVG icons for the UI/shelf/menu
   scripts/
     userSetup.py            <- adds the "GNM" menu on launch
     gnm_maya/               <- Maya-side package (pure python, Qt-optional)
+      ui/_icons/            <- Material-style SVG icons (UI/shelf/menu)
   external/
     server.py / generate.py <- run inside the downloaded runtime
     gnm_repo/                <- google/GNM repo (downloaded on first run)

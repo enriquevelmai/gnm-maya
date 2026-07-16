@@ -10,9 +10,9 @@ external/GNM_version.json
 __pycache__/
 *.py[cod]
 
-# Tinted PNG icons rasterised from icons/*.svg on demand (regenerated at run
-# time for Maya's shelf/menu; the SVG sources are the tracked originals).
-icons/_cache/
+# Tinted PNG icons rasterised from the bundled SVGs on demand (regenerated at
+# run time for Maya's shelf/menu; the SVG sources are the tracked originals).
+scripts/gnm_maya/ui/_icons/_cache/
 
 # Scratch output dirs from generate.py / server.py / self-tests
 _out*/

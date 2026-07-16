@@ -1,7 +1,9 @@
 """Material-style icon loading for the GNM UI.
 
-The module ships a set of monochrome SVGs in ``<module>/icons/`` (see that
-folder). They are authored in a dark ink colour and *tinted at load time* to a
+The SVGs live *inside this package* (``gnm_maya/ui/_icons/``) so they always
+travel with the code that uses them — every install/update mechanism that
+ships ``scripts/`` carries them, with no separate top-level folder that can go
+missing. They are authored in a dark ink colour and *tinted at load time* to a
 light grey that reads on Maya's dark theme — so one SVG serves normal and
 disabled states, and the same art works on light themes if the colour is
 overridden.
@@ -29,11 +31,12 @@ try:
 except ImportError:  # Maya 2022-2024
   from PySide2 import QtGui, QtCore
 
-from gnm_maya.core import config
-
 logger = logging.getLogger(__name__)
 
-ICON_DIR = os.path.join(config.MODULE_ROOT, "icons")
+# Bundled with this module file (…/gnm_maya/ui/_icons/). Kept next to the code
+# so it is present wherever scripts/ is, regardless of how the tool was
+# installed or updated.
+ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_icons")
 _CACHE_DIR = os.path.join(ICON_DIR, "_cache")
 
 # Maya's dark theme: a light grey icon reads best next to the button label.
