@@ -100,7 +100,14 @@ Per-platform notes:
   Wink Left, …) — GNM's conditional-VAE decoders, run in numpy (no TensorFlow).
   Its **Area Randomize** box masks randomization to checked face regions
   (left/right eye, lower face, head, …): lock a face you like and re-roll just
-  the nose/jaw area, or zero one region without touching the rest.
+  one area, or zero a region without touching the rest. **Feature zones**
+  (Nose / Mouth / Jaw / Brows / Eyes) go finer than the model's own groups: a
+  fit solver confines the change geometrically while staying in coefficient
+  space (soft isolation — a small natural falloff halo remains). The
+  **Variants…** button renders a 3×3 contact sheet of candidate
+  randomizations — click a face to apply it, Re-roll for nine more. And the
+  **◀ ▶ history ladder** (bottom-left) steps back/forward through every
+  randomize / sample / variant / reset, so a good face is never lost.
   Then tabs for **Identity / Expression / Pose / Translation** with
   per-coefficient sliders grouped by body part
   (double-click a slider to reset it). Each tab has its own **Randomize** and
@@ -115,6 +122,10 @@ Per-platform notes:
   **self-sufficient rigged asset**: a blendShape node with the 20 named
   expressions and/or the **first N basis modes of each region** as keyframable
   sliders (happy, smile_wide, left_eye_region_000, …) plus a neck → head → eyes
+  joint chain. An **ARKit-52 target names** option renames (and L/R-splits
+  symmetric) semantic targets to Live Link Face conventions (eyeBlinkLeft,
+  mouthSmileLeft/Right, …) so mocap tools drive the exported rig by name —
+  coverage is partial (only credible GNM↔ARKit correspondences)
   joint chain skinned with GNM's own weights. The result needs no GNM runtime
   and exports to FBX. (Note: Maya's plain LBS skips GNM's pose correctives, so
   extreme neck/eye rotations deviate slightly.)
@@ -135,7 +146,9 @@ Per-platform notes:
 - **GNM ▸ Landmarks: Create / Update / Fit Head to Locators** — GNM's 68
   facial landmarks as locators. Drag them (optionally with the L/R mirror
   toggle) and **Fit Head to Locators** ridge-solves the identity so the head
-  reshapes to match — the landmarks are a sculpting skeleton.
+  reshapes to match — the landmarks are a sculpting skeleton. **Toggle Live
+  Fit (drag-to-sculpt)** re-runs the solve automatically every time a locator
+  drag ends, so the head follows your hands.
 - **Describe** (Semantic tab) — type "a very happy asian woman, winking left"
   and Apply. Local synonym lexicon (instant, offline); if a local **Ollama**
   server is running it is used automatically for free-form phrasing.

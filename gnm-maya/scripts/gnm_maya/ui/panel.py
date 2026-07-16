@@ -122,6 +122,9 @@ class GnmPanel(QtWidgets.QWidget):
     self._blend_iden_seed = 0
     self._gallery = _load_gallery()  # pre-rendered min/max shape thumbnails
     self._coeff_meta = []            # (slider, kind, idx) for live thumb resize
+    self._hist = []                  # coefficient-state ladder (undo/redo)
+    self._hist_i = -1
+    self._hist_max = 40
     from gnm_maya.core import settings as _settings
     self._thumb_px = _settings.thumb_size()
 
@@ -196,6 +199,60 @@ class GnmPanel(QtWidgets.QWidget):
     self.populate_ui()
     self.register_controllers()
     self._sync_sliders_from_head()
+    self._push_history()  # ladder starts at the head's initial state
+
+  # --- history ladder --------------------------------------------------------
+
+  def _snapshot(self):
+    h = self.head
+    return {"identity": list(h.identity), "expression": list(h.expression),
+            "rotations": [list(r) for r in h.rotations],
+            "translation": list(h.translation)}
+
+  def _push_history(self):
+    """Record the current state after a discrete action (randomize, sample,
+    variant, reset, fit...). Slider drags are deliberately NOT recorded —
+    the ladder steps between meaningful looks, not every mouse move."""
+    if not self.head:
+      return
+    snap = self._snapshot()
+    if 0 <= self._hist_i < len(self._hist) and self._hist[self._hist_i] == snap:
+      return  # no-op action; don't duplicate
+    del self._hist[self._hist_i + 1:]          # a new action drops redo tail
+    self._hist.append(snap)
+    if len(self._hist) > self._hist_max:
+      self._hist.pop(0)
+    self._hist_i = len(self._hist) - 1
+    self._update_hist_buttons()
+
+  def _apply_snapshot(self, snap):
+    h = self.head
+    h.identity = list(snap["identity"])
+    h.expression = list(snap["expression"])
+    h.rotations = [list(r) for r in snap["rotations"]]
+    h.translation = list(snap["translation"])
+    h.refresh()
+    self._sync_sliders_from_head()
+
+  def _hist_step(self, delta):
+    if not self.head or not self._hist:
+      return
+    j = self._hist_i + delta
+    if not (0 <= j < len(self._hist)):
+      return
+    try:
+      self._hist_i = j
+      self._apply_snapshot(self._hist[j])
+      self.status.setText("History: state %d / %d."
+                          % (j + 1, len(self._hist)))
+      self._update_hist_buttons()
+    except Exception as e:
+      self._show_error("History step failed", e)
+
+  def _update_hist_buttons(self):
+    if hasattr(self, "hist_back_btn"):
+      self.hist_back_btn.setEnabled(self._hist_i > 0)
+      self.hist_fwd_btn.setEnabled(self._hist_i < len(self._hist) - 1)
 
   # --- error reporting -------------------------------------------------------
 
@@ -246,6 +303,18 @@ class GnmPanel(QtWidgets.QWidget):
       self.tabs.addTab(self._translation_tab(), "Translation")
 
     bottom = QtWidgets.QHBoxLayout()
+    self.hist_back_btn = QtWidgets.QPushButton()
+    self.hist_back_btn.setFixedWidth(30)
+    self.hist_back_btn.setToolTip(
+        "<b>Previous look</b><br>Step back through the ladder of randomize / "
+        "sample / variant / reset states (slider drags aren't recorded).")
+    icons.decorate(self.hist_back_btn, "arrow_back", 15)
+    self.hist_fwd_btn = QtWidgets.QPushButton()
+    self.hist_fwd_btn.setFixedWidth(30)
+    self.hist_fwd_btn.setToolTip("<b>Next look</b><br>Step forward again.")
+    icons.decorate(self.hist_fwd_btn, "arrow_forward", 15)
+    bottom.addWidget(self.hist_back_btn)
+    bottom.addWidget(self.hist_fwd_btn)
     bottom.addStretch(1)
     bottom.addWidget(self.fit_btn)
     bottom.addWidget(self.bake_btn)
@@ -261,6 +330,8 @@ class GnmPanel(QtWidgets.QWidget):
     self.bake_btn.clicked.connect(self._bake_rig)
     self.thumb_combo.currentIndexChanged.connect(self._on_thumb_size)
     self.info_btn.clicked.connect(self._show_info)
+    self.hist_back_btn.clicked.connect(lambda: self._hist_step(-1))
+    self.hist_fwd_btn.clicked.connect(lambda: self._hist_step(+1))
     self._refresh_timer.timeout.connect(self._do_refresh)
     # Per-tab and per-slider callbacks are wired where those widgets are built
     # (they depend on the head metadata, not known until construction).
@@ -551,6 +622,36 @@ class GnmPanel(QtWidgets.QWidget):
       self._area_checks[label] = cb
     v.addLayout(grid)
 
+    # Finer feature zones (geometric mask + fit solver — the model has no
+    # nose/mouth-only basis, so these solve the nearest in-model shape whose
+    # change is confined to the zone; isolation is soft by design).
+    self._zone_checks = {}
+    zrow = QtWidgets.QHBoxLayout()
+    zlbl = QtWidgets.QLabel("Feature zones:")
+    zlbl.setToolTip(
+        "<b>Feature zones</b><br>Geometry-masked randomize for areas the "
+        "model has no dedicated modes for. A fit solver confines the change "
+        "to the zone (softly — a small natural falloff halo remains).")
+    zrow.addWidget(zlbl)
+    for zone in ("nose", "mouth", "jaw", "brows", "eyes"):
+      cb = QtWidgets.QCheckBox(zone.title())
+      cb.setToolTip(
+          "<b>%s zone</b><br>Randomize/reset only the %s area "
+          "(fit-based geometric mask with smooth falloff)."
+          % (zone.title(), zone))
+      zrow.addWidget(cb)
+      self._zone_checks[zone] = cb
+    zrow.addStretch(1)
+    var_btn = QtWidgets.QPushButton("Variants…")
+    var_btn.setToolTip(
+        "<b>Variant contact sheet</b><br>Render 9 candidate randomizations "
+        "of the checked areas/zones as thumbnails — click one to apply it. "
+        "With nothing checked, full randomize.")
+    icons.decorate(var_btn, "grid", 15)
+    var_btn.clicked.connect(self._open_variants)
+    zrow.addWidget(var_btn)
+    v.addLayout(zrow)
+
     row = QtWidgets.QHBoxLayout()
     all_btn = QtWidgets.QPushButton("All")
     all_btn.setFixedWidth(44)
@@ -595,17 +696,22 @@ class GnmPanel(QtWidgets.QWidget):
   def _checked_areas(self):
     return [label for label, cb in self._area_checks.items() if cb.isChecked()]
 
+  def _checked_zones(self):
+    return [z for z, cb in getattr(self, "_zone_checks", {}).items()
+            if cb.isChecked()]
+
   def _randomize_areas(self, kind):
-    """Randomize only the checked regions' ``kind`` coefficients."""
+    """Randomize only the checked regions/zones' ``kind`` coefficients."""
     if not self.head:
       return
     labels = self._checked_areas()
-    if not labels:
-      self.status.setText("Area Randomize: no areas checked.")
+    zones = self._checked_zones()
+    if not labels and not zones:
+      self.status.setText("Area Randomize: no areas or zones checked.")
       return
     ranges = [(label, self._area_ranges[label][kind]) for label in labels
               if kind in self._area_ranges[label]]
-    if not ranges:
+    if not ranges and not zones:
       self.status.setText("Checked areas have no %s modes." % kind)
       return
     try:
@@ -613,22 +719,28 @@ class GnmPanel(QtWidgets.QWidget):
         self.head.randomize_range(kind, start, end, scale=self._scale_value,
                                   seed=self._rand_seed(),
                                   symmetric=self._symmetry, update=False)
+      if zones:
+        self.head.randomize_zones(kind, zones, scale=self._scale_value,
+                                  seed=self._rand_seed(),
+                                  symmetric=self._symmetry, update=False)
       self.head.refresh()
       self._sync_sliders_from_head()
       mc.select(self.head.transform, replace=True)
+      what = [l for l, _r in ranges] + zones
       self.status.setText("Randomized %s areas: %s (scale=%.2f)."
-                          % (kind, ", ".join(l for l, _r in ranges),
-                             self._scale_value))
+                          % (kind, ", ".join(what), self._scale_value))
+      self._push_history()
     except Exception as e:
       self._show_error("Area randomize failed", e)
 
   def _reset_areas(self):
-    """Zero the checked regions (identity + expression), leave the rest."""
+    """Zero the checked regions/zones (identity + expression), leave the rest."""
     if not self.head:
       return
     labels = self._checked_areas()
-    if not labels:
-      self.status.setText("Reset Areas: no areas checked.")
+    zones = self._checked_zones()
+    if not labels and not zones:
+      self.status.setText("Reset Areas: no areas or zones checked.")
       return
     try:
       for kind in ("identity", "expression"):
@@ -639,10 +751,135 @@ class GnmPanel(QtWidgets.QWidget):
             idxs.extend(range(start, end + 1))
         if idxs:
           self.head.clear(kind, idxs)
+        if zones:  # scale=0 solves the zones back toward neutral
+          self.head.randomize_zones(kind, zones, scale=0.0, update=False)
+      if zones:
+        self.head.refresh()
       self._sync_sliders_from_head()
-      self.status.setText("Reset areas: %s." % ", ".join(labels))
+      self.status.setText("Reset areas: %s." % ", ".join(labels + zones))
+      self._push_history()
     except Exception as e:
       self._show_error("Area reset failed", e)
+
+  # --- variant contact sheet -------------------------------------------------
+
+  def _make_candidate(self, kind, seed):
+    """One candidate (identity, expression) pair: the current head with the
+    checked areas/zones (or everything, if nothing is checked) re-rolled."""
+    import random as _random
+    rng = _random.Random(seed)
+    cid = list(self.head.identity)
+    cex = list(self.head.expression)
+    vec = cid if kind == "identity" else cex
+    labels = self._checked_areas()
+    zones = self._checked_zones()
+    ranges = [self._area_ranges[l][kind] for l in labels
+              if kind in self._area_ranges[l]]
+    if not ranges and not zones:               # nothing checked: full re-roll
+      ranges = [(0, len(vec) - 1)]
+    for start, end in ranges:
+      for i in range(start, end + 1):
+        vec[i] = rng.gauss(0.0, 1.0) * self._scale_value
+    if kind == "expression" and self._symmetry:
+      for a, b in self.head.expression_mirror.items():
+        if a < b:
+          vec[b] = vec[a]
+    if zones:
+      out = self.head.worker.zone_randomize(
+          kind, zones, identity=cid, expression=cex,
+          scale=self._scale_value, seed=seed)
+      vec[:] = [float(x) for x in out]
+      if kind == "expression" and self._symmetry:
+        for a, b in self.head.expression_mirror.items():
+          if a < b:
+            vec[b] = vec[a]
+    return cid, cex
+
+  def _open_variants(self):
+    """3x3 contact sheet of candidate randomizations; click one to apply."""
+    if not self.head:
+      return
+    import tempfile
+
+    dlg = QtWidgets.QDialog(self)
+    dlg.setWindowTitle("GNM — Variants")
+    dlg.setWindowIcon(icons.window_icon())
+    v = QtWidgets.QVBoxLayout(dlg)
+
+    top = QtWidgets.QHBoxLayout()
+    top.addWidget(QtWidgets.QLabel("Randomize"))
+    kind_combo = QtWidgets.QComboBox()
+    kind_combo.addItems(["Identity", "Expression"])
+    kind_combo.setToolTip("Which basis the variants re-roll (the mask comes "
+                          "from the checked areas/zones).")
+    top.addWidget(kind_combo)
+    reroll = QtWidgets.QPushButton("Re-roll")
+    icons.decorate(reroll, "dice", 15)
+    reroll.setToolTip("Generate 9 fresh candidates.")
+    top.addWidget(reroll)
+    top.addStretch(1)
+    hint = QtWidgets.QLabel("click a face to apply it")
+    top.addWidget(hint)
+    v.addLayout(top)
+
+    grid = QtWidgets.QGridLayout()
+    v.addLayout(grid)
+    tmpdir = tempfile.mkdtemp(prefix="gnm_variants_")
+    cells = []
+    for n in range(9):
+      btn = QtWidgets.QToolButton()
+      btn.setIconSize(QtCore.QSize(150, 150))
+      btn.setAutoRaise(True)
+      grid.addWidget(btn, n // 3, n % 3)
+      cells.append(btn)
+
+    state = {"cands": [None] * 9}
+
+    def apply_candidate(n):
+      cand = state["cands"][n]
+      if cand is None or not self.head:
+        return
+      try:
+        cid, cex = cand
+        self.head.identity = list(cid)
+        self.head.expression = list(cex)
+        self.head.refresh()
+        self._sync_sliders_from_head()
+        self.status.setText("Applied variant %d." % (n + 1))
+        self._push_history()
+      except Exception as e:
+        self._show_error("Apply variant failed", e)
+
+    def generate():
+      kind = kind_combo.currentText().lower()
+      mc.waitCursor(state=True)
+      try:
+        for n, btn in enumerate(cells):
+          seed = self._rand_seed()
+          cid, cex = self._make_candidate(kind, seed)
+          png = os.path.join(tmpdir, "var_%d_%d.png" % (n, seed))
+          self.head.worker.render(png, identity=cid, expression=cex, size=150)
+          btn.setIcon(QtGui.QIcon(png))
+          state["cands"][n] = (cid, cex)
+          QtWidgets.QApplication.processEvents()
+      except Exception as e:
+        self._show_error("Variant generation failed", e)
+      finally:
+        mc.waitCursor(state=False)
+
+    for n, btn in enumerate(cells):
+      btn.clicked.connect(lambda _=False, i=n: apply_candidate(i))
+    reroll.clicked.connect(generate)
+    kind_combo.currentIndexChanged.connect(lambda _i: generate())
+
+    def cleanup():
+      import shutil
+      shutil.rmtree(tmpdir, ignore_errors=True)
+    dlg.finished.connect(lambda _r: cleanup())
+
+    generate()
+    dlg.show()
+    return dlg
 
   # --- blend actions -------------------------------------------------------
 
@@ -695,6 +932,7 @@ class GnmPanel(QtWidgets.QWidget):
       mc.select(self.head.transform, replace=True)
       self.status.setText("Sampled identity: %s / %s" % (
           self.sem_gender.currentText(), self.sem_ethnicity.currentText()))
+      self._push_history()
     except Exception as e:
       self._show_error("Sample identity failed", e)
 
@@ -715,6 +953,7 @@ class GnmPanel(QtWidgets.QWidget):
                         if int(k) < len(names))
       self.status.setText("Described (%s): %s" % (
           parsed.get("source", "?"), picks or "identity only"))
+      self._push_history()
     except Exception as e:
       self._show_error("Describe failed", e)
 
@@ -728,6 +967,7 @@ class GnmPanel(QtWidgets.QWidget):
       self._sync_sliders_from_head()
       self.status.setText("Sampled expression: %s"
                           % self.sem_expr.currentText())
+      self._push_history()
     except Exception as e:
       self._show_error("Sample expression failed", e)
 
@@ -915,6 +1155,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.status.setText("Randomized %s (scale=%.2f%s)."
                           % (kind, scale, ", symmetric" if self._symmetry
                              and kind == "expression" else ""))
+      self._push_history()
     except Exception as e:
       self._show_error("Randomize %s failed" % kind, e)
 
@@ -928,6 +1169,7 @@ class GnmPanel(QtWidgets.QWidget):
         self.head.reset_expression()
       self._sync_sliders_from_head()
       self.status.setText("Reset %s." % kind)
+      self._push_history()
     except Exception as e:
       self._show_error("Reset %s failed" % kind, e)
 
@@ -961,6 +1203,7 @@ class GnmPanel(QtWidgets.QWidget):
       self._sync_sliders_from_head()
       self.status.setText("Randomized pose%s."
                           % (" (symmetric)" if self._symmetry else ""))
+      self._push_history()
     except Exception as e:
       self._show_error("Randomize pose failed", e)
 
@@ -971,6 +1214,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.head.reset_pose()
       self._sync_sliders_from_head()
       self.status.setText("Reset pose.")
+      self._push_history()
     except Exception as e:
       self._show_error("Reset pose failed", e)
 
@@ -981,6 +1225,7 @@ class GnmPanel(QtWidgets.QWidget):
       self.head.reset_translation()
       self._sync_sliders_from_head()
       self.status.setText("Reset translation.")
+      self._push_history()
     except Exception as e:
       self._show_error("Reset translation failed", e)
 
@@ -1060,7 +1305,16 @@ class GnmPanel(QtWidgets.QWidget):
         "(%d regions: %s) as individual targets, named by basis\n"
         "(e.g. left_eye_region_000, lower_face_region_000, ...)."
         % (len(groups), ", ".join(n for n, _s, _e in groups)))
+    arkit_chk = QtWidgets.QCheckBox()
+    arkit_chk.setToolTip(
+        "Name the semantic targets after ARKit-52 blendshapes (eyeBlinkLeft,\n"
+        "jawOpen-style names; symmetric shapes are split into Left/Right\n"
+        "halves), so Live Link Face and other mocap tools can drive the\n"
+        "exported rig by name. Coverage is partial: only credible\n"
+        "GNM-to-ARKit correspondences are mapped; unmapped shapes keep\n"
+        "their GNM names.")
     form.addRow("20 semantic expressions", sem_chk)
+    form.addRow("ARKit-52 target names", arkit_chk)
     form.addRow("Basis modes per region", modes_spin)
     btns = QtWidgets.QDialogButtonBox(
         QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -1071,6 +1325,7 @@ class GnmPanel(QtWidgets.QWidget):
     if not run_dialog():
       return
     semantic = sem_chk.isChecked()
+    arkit = arkit_chk.isChecked() and semantic
     num_modes = modes_spin.value()
     if not semantic and num_modes == 0:
       self.status.setText("Nothing to bake (no targets selected).")
@@ -1080,8 +1335,10 @@ class GnmPanel(QtWidgets.QWidget):
     try:
       n_targets = (20 if semantic else 0) + num_modes * max(1, len(groups))
       self._busy_status("Baking rig (~%d targets + joints)…" % n_targets)
-      name = rig.bake_rig(self.head, num_modes=num_modes, semantic=semantic)
-      self.status.setText("Baked rig: %s (sliders + joints)" % name)
+      name = rig.bake_rig(self.head, num_modes=num_modes, semantic=semantic,
+                          arkit=arkit)
+      self.status.setText("Baked rig: %s (sliders + joints%s)"
+                          % (name, ", ARKit names" if arkit else ""))
     except Exception as e:
       self._show_error("Bake Rig failed", e)
 
@@ -1110,6 +1367,7 @@ class GnmPanel(QtWidgets.QWidget):
       mc.select(self.head.transform, replace=True)
       self.status.setText("Fitted identity from photo (likeness, front-view "
                           "modes only).")
+      self._push_history()
     except Exception as e:
       self._show_error("Fit from Photo failed", e)
 
@@ -1146,6 +1404,7 @@ class GnmPanel(QtWidgets.QWidget):
       mc.select(keep, replace=True)
       logger.info("Reset %s", keep)
       self.status.setText("Reset: %s" % ", ".join(keep))
+      self._push_history()
     except Exception as e:
       self._show_error("Reset failed", e)
 

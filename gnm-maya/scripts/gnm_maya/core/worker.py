@@ -124,6 +124,39 @@ class GnmWorker(object):
       raise RuntimeError("text2face failed: %s" % resp)
     return json.loads(resp[len("T2F "):])
 
+  def zone_randomize(self, kind, zones, identity=None, expression=None,
+                     scale=1.0, seed=None):
+    """Zone-masked randomize (nose/mouth/jaw/...): returns a full coefficient
+    vector for ``kind`` whose effect is confined to ``zones``. scale=0 resets
+    the zones toward neutral."""
+    req = {"cmd": "zone_randomize", "kind": str(kind),
+           "zones": [str(z) for z in zones], "scale": float(scale)}
+    if identity is not None:
+      req["identity"] = [float(x) for x in identity]
+    if expression is not None:
+      req["expression"] = [float(x) for x in expression]
+    if seed is not None:
+      req["seed"] = int(seed)
+    return self._sample(req)
+
+  def render(self, out, identity=None, expression=None, size=128):
+    """Render a head thumbnail PNG (orthographic, gallery framing) to ``out``.
+
+    Returns the written path. Used by the Variants contact sheet."""
+    if not self.alive():
+      raise RuntimeError("GNM server has exited.")
+    req = {"cmd": "render", "out": str(out), "size": int(size)}
+    if identity is not None:
+      req["identity"] = [float(x) for x in identity]
+    if expression is not None:
+      req["expression"] = [float(x) for x in expression]
+    self.proc.stdin.write(json.dumps(req) + "\n")
+    self.proc.stdin.flush()
+    resp = self.proc.stdout.readline().strip()
+    if not resp.startswith("OK"):
+      raise RuntimeError("GNM render failed: %s" % resp)
+    return out
+
   def fit_landmarks3d(self, targets, expression=None, lam=1.0):
     """Fit identity to 68 3D landmark positions (GNM order, object space)."""
     req = {"cmd": "fit_landmarks3d", "lam": float(lam),
@@ -142,15 +175,18 @@ class GnmWorker(object):
       req["order"] = order
     return self._sample(req)
 
-  def bake(self, identity=None, num_modes=0, semantic=True, seed=0):
+  def bake(self, identity=None, num_modes=0, semantic=True, seed=0,
+           arkit=False):
     """Export rig data (targets/weights/joints) into the session dir.
 
-    Returns the parsed rig.json metadata.
+    ``arkit`` renames/splits the semantic targets to ARKit-52 blendshape
+    names (Live Link Face conventions). Returns the parsed rig.json metadata.
     """
     if not self.alive():
       raise RuntimeError("GNM server has exited.")
     req = {"cmd": "bake", "num_modes": int(num_modes),
-           "semantic": bool(semantic), "seed": int(seed)}
+           "semantic": bool(semantic), "seed": int(seed),
+           "arkit": bool(arkit)}
     if identity is not None:
       req["identity"] = [float(x) for x in identity]
     self.proc.stdin.write(json.dumps(req) + "\n")

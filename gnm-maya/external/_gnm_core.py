@@ -125,8 +125,45 @@ def export_topology(model, out_dir):
   return meta
 
 
+# GNM semantic expression -> ARKit-52 blendshape name(s). One GNM name may
+# map to an ARKit Left/Right PAIR: the baked delta is then split into two
+# targets with a smooth mask across the head's midline, so mocap can drive
+# each side independently (Live Link Face & friends match by these names).
+# Curated: only credible correspondences; unmapped GNM shapes keep their own
+# names, unmapped ARKit shapes are simply absent (retargeting tolerates that).
+ARKIT_MAP = {
+    "wink_left": ["eyeBlinkLeft"],
+    "wink_right": ["eyeBlinkRight"],
+    "smile_wide": ["mouthSmileLeft", "mouthSmileRight"],
+    "happy": ["cheekSquintLeft", "cheekSquintRight"],
+    "corners_down": ["mouthFrownLeft", "mouthFrownRight"],
+    "squint": ["eyeSquintLeft", "eyeSquintRight"],
+    "snarl": ["noseSneerLeft", "noseSneerRight"],
+    "pucker": ["mouthPucker"],
+    "funneler": ["mouthFunnel"],
+    "blow": ["cheekPuff"],
+    "lips_roll_in": ["mouthRollLower", "mouthRollUpper"],
+    "mouth_left": ["mouthLeft"],
+    "mouth_right": ["mouthRight"],
+    "stretch_face": ["mouthStretchLeft", "mouthStretchRight"],
+    "compress_face": ["mouthPressLeft", "mouthPressRight"],
+    "tongue_center": ["tongueOut"],
+    "surprise": ["browInnerUp"],
+}
+
+
+def _side_masks(neutral, left_positive):
+  """Smooth left/right vertex masks across the midline (x=0), ~8 mm blend."""
+  import numpy as np
+  x = np.asarray(neutral, np.float32).reshape(-1, 3)[:, 0]
+  s = np.clip((x / 0.008) * (1.0 if left_positive else -1.0) * 0.5 + 0.5,
+              0.0, 1.0)
+  s = s * s * (3.0 - 2.0 * s)
+  return s, 1.0 - s          # (left_mask, right_mask), each (V,)
+
+
 def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
-                    mode_scale=2.0, seed=0):
+                    mode_scale=2.0, seed=0, arkit=False):
   """Write everything Maya needs to bake a self-sufficient rig.
 
   Targets are evaluated at the CURRENT identity with zero pose, so blendshape
@@ -145,17 +182,42 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
 
   targets = []
 
-  def add_target(name, expr_vec):
-    verts = eval_vertices(model, identity=identity, expression=expr_vec)
+  def write_target(name, verts):
     fname = "target_%s.bin" % name
     write_vertices(verts, os.path.join(out_dir, fname))
     targets.append({"name": name, "file": fname})
 
+  def add_target(name, expr_vec):
+    write_target(name,
+                 eval_vertices(model, identity=identity, expression=expr_vec))
+
   # 20 semantic expression targets (fixed per-class seed => reproducible bake).
   if sampler is not None:
     import _semantic
+    if arkit:
+      # Which world side is the performer's Left? Read it off wink_left's
+      # displacement instead of assuming an axis convention.
+      wl = _semantic.EXPRESSION.index("wink_left")
+      d = (eval_vertices(model, identity=identity,
+                         expression=sampler.sample_expression(
+                             wl, seed=seed + wl)) - neutral)
+      mag = np.linalg.norm(d, axis=1)
+      cx = float((neutral[:, 0] * mag).sum() / max(float(mag.sum()), 1e-12))
+      left_positive = cx > 0.0  # wink_left moves the performer's-left side
+      lmask, rmask = _side_masks(neutral, left_positive)
     for i, name in enumerate(_semantic.EXPRESSION):
-      add_target(name, sampler.sample_expression(i, seed=seed + i))
+      expr_vec = sampler.sample_expression(i, seed=seed + i)
+      if not arkit or name not in ARKIT_MAP:
+        add_target(name, expr_vec)
+        continue
+      arkit_names = ARKIT_MAP[name]
+      verts = eval_vertices(model, identity=identity, expression=expr_vec)
+      if len(arkit_names) == 1:
+        write_target(arkit_names[0], verts)
+      else:  # split one symmetric shape into ARKit Left/Right halves
+        delta = verts - neutral
+        for out_name, mask in zip(arkit_names, (lmask, rmask)):
+          write_target(out_name, neutral + mask[:, None] * delta)
 
   # Optional: the first N raw basis modes OF EACH REGION as individual
   # targets (unit coefficient * mode_scale), named by their basis names.

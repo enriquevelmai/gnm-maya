@@ -276,6 +276,55 @@ def fit_head_to_landmarks():
   return name
 
 
+_live_fit = {"job": None}
+
+
+@_report_errors("Live Landmark Fit")
+def toggle_live_landmark_fit():
+  """Drag-to-sculpt: after each viewport drag of a GNM landmark locator, the
+  head's identity is automatically re-fitted to the locators (same solver as
+  'Fit Head to Locators', minus the button press). Toggles on/off."""
+  if _live_fit["job"] is not None:
+    try:
+      mc.scriptJob(kill=_live_fit["job"], force=True)
+    except Exception:
+      pass
+    _live_fit["job"] = None
+    mc.inViewMessage(assistMessage="GNM live landmark fit: OFF",
+                       position="topCenter", fade=True)
+    return False
+
+  _current_head()  # validate a head exists before arming the job
+
+  def _on_drag_release():
+    # Only react when the drag actually involved landmark locators.
+    sel = mc.ls(selection=True, long=True) or []
+    if not any("gnmLmk_" in s for s in sel):
+      return
+    try:
+      from gnm_maya.scene import landmarks
+      head = _current_head()
+      landmarks.fit_head_to_locators(head)
+      # Refresh the panel sliders if it is open on this head.
+      from gnm_maya.ui import panel as ui
+      p = getattr(ui, "_WINDOW", None)
+      if p and getattr(p, "head", None) and \
+         p.head.transform == head.transform:
+        p.head.identity = list(head.identity)
+        p._sync_sliders_from_head()
+        p._push_history()
+    except Exception:
+      # Never dialog-spam mid-drag; the Script Editor keeps the details.
+      logger.exception("live landmark fit failed")
+
+  _live_fit["job"] = mc.scriptJob(event=["DragRelease", _on_drag_release])
+  mc.inViewMessage(
+      assistMessage="GNM live landmark fit: ON (drag locators; the head "
+                    "follows on release)",
+      position="topCenter", fade=True)
+  return True
+
+
 @_report_errors("Landmark Mirror")
 def toggle_landmark_mirror():
   """Toggle L<->R mirrored landmark editing (returns new state)."""

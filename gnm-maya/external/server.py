@@ -41,6 +41,7 @@ def main():
   core.export_topology(model, args.session)
 
   sampler = {"obj": None}  # lazy: only built on first semantic request
+  frames = {}              # per-size neutral framing for the render op
 
   def get_sampler():
     if sampler["obj"] is None:
@@ -105,8 +106,40 @@ def main():
             num_modes=req.get("num_modes", 0),
             sampler=sampler_obj,
             seed=req.get("seed", 0),
+            arkit=req.get("arkit", False),
         )
         print("BAKED %d" % len(meta["targets"]), flush=True)
+      except Exception as e:
+        print("ERR %s" % e, flush=True)
+      continue
+
+    if cmd == "zone_randomize":
+      try:
+        import _zones
+        vec = _zones.zone_randomize(
+            model, req["kind"], req["zones"],
+            identity=req.get("identity"), expression=req.get("expression"),
+            scale=req.get("scale", 1.0), seed=req.get("seed"))
+        print("COEFF " + json.dumps(vec), flush=True)
+      except Exception as e:
+        print("ERR %s" % e, flush=True)
+      continue
+
+    if cmd == "render":
+      try:
+        import numpy as np
+        import _render
+        size = int(req.get("size", 128))
+        if size not in frames:
+          frames[size] = _render.compute_frame(core.eval_vertices(model),
+                                               size=size)
+        verts = core.eval_vertices(model,
+                                   identity=req.get("identity"),
+                                   expression=req.get("expression"))
+        img = _render.render_head(verts, np.asarray(model.triangles, np.int32),
+                                  frame=frames[size])
+        _render.write_png(req["out"], img)
+        print("OK %s" % req["out"], flush=True)
       except Exception as e:
         print("ERR %s" % e, flush=True)
       continue

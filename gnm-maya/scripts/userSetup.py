@@ -79,6 +79,11 @@ def build_menu():
         icon="face",
         annotation="Solve identity so the head's landmarks match the "
                    "edited locators.")
+  _item("Landmarks: Toggle Live Fit (drag-to-sculpt)",
+        "from gnm_maya.ui import tools as ui_tools; ui_tools.toggle_live_landmark_fit()",
+        icon="tune",
+        annotation="Refit the head automatically every time a landmark "
+                   "locator drag ends.")
   _item("Shape Gallery (min/max images)",
         "from gnm_maya.ui import tools as ui_tools; ui_tools.open_shape_gallery()",
         icon="grid",

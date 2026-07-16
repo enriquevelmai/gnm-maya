@@ -86,6 +86,40 @@ def run():
     print("[ok] area mask randomize/reset confined to '%s' [%d..%d]"
           % (label, start, end))
 
+    # feature-zone randomize (worker roundtrip; confinement is unit-tested
+    # in external/_zones — here we verify the wiring end to end)
+    head.reset_all()
+    head.randomize_zones("identity", ["nose"], scale=1.0, seed=3)
+    assert any(abs(x) > 1e-6 for x in head.identity), \
+        "zone randomize produced no coefficients"
+    zoned = _sum_points(name)
+    head.randomize_zones("identity", ["nose"], scale=0.0)  # zone reset
+    print("[ok] feature-zone randomize + reset roundtrip (delta=%.4f)"
+          % (zoned - base))
+
+    # thumbnail render op (drives the Variants contact sheet)
+    import os
+    import tempfile
+    png = os.path.join(tempfile.gettempdir(), "gnm_smoke_thumb.png")
+    from gnm_maya.core import worker as _worker_mod
+    _worker_mod.get_worker().render(png, identity=head.identity, size=96)
+    assert os.path.isfile(png) and os.path.getsize(png) > 1000, \
+        "render op produced no thumbnail"
+    os.remove(png)
+    print("[ok] worker render op writes thumbnails")
+
+    # ARKit bake: semantic targets renamed/split to ARKit-52 conventions
+    meta_rig = _worker_mod.get_worker().bake(identity=head.identity,
+                                             semantic=True, arkit=True)
+    names = {t["name"] for t in meta_rig["targets"]}
+    for expect in ("eyeBlinkLeft", "eyeBlinkRight", "mouthSmileLeft",
+                   "mouthSmileRight", "mouthPucker", "cheekPuff",
+                   "tongueOut"):
+      assert expect in names, "missing ARKit target %s (have %s)" % (
+          expect, sorted(names))
+    assert "wink_left" not in names, "wink_left should be renamed for ARKit"
+    print("[ok] ARKit bake: %d targets incl. L/R splits" % len(names))
+
     worker.shutdown_worker()
     print("SMOKE TEST PASSED")
   finally:

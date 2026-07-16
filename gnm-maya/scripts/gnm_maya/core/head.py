@@ -220,6 +220,34 @@ class GnmHead(object):
     logger.info("Randomized %s[%d..%d] (scale=%.2f) on '%s'",
                 kind, start, end, scale, self.transform)
 
+  def randomize_zones(self, kind, zones, scale=1.0, seed=None,
+                      symmetric=False, update=True):
+    """Zone-masked randomize (nose/mouth/jaw/brows/eyes) via the fit solver.
+
+    Unlike :meth:`randomize_range` (which masks whole basis GROUPS), this
+    masks by GEOMETRY: the worker blends a random candidate into the zone's
+    vertices with smooth falloff and ridge-solves back to one ordinary
+    coefficient vector — sliders/presets/baking stay fully consistent.
+    ``scale=0`` resets the zones toward neutral.
+    """
+    vec = self.worker.zone_randomize(kind, list(zones),
+                                     identity=self.identity,
+                                     expression=self.expression,
+                                     scale=scale, seed=seed)
+    if kind == "identity":
+      self.identity = [float(x) for x in vec]
+    else:
+      vals = [float(x) for x in vec]
+      if symmetric:
+        for a, b in self.expression_mirror.items():
+          if a < b:
+            vals[b] = vals[a]
+      self.expression = vals
+    if update:
+      self._update()
+    logger.info("Zone-randomized %s %s (scale=%.2f) on '%s'",
+                kind, "+".join(zones), scale, self.transform)
+
   def randomize_pose(self, scale=0.3, seed=None, symmetric=False):
     rng = random.Random(seed)
     rot = [[rng.gauss(0.0, 1.0) * scale for _ in range(3)]

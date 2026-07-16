@@ -42,12 +42,17 @@ def _read_weights(session_dir, num_joints, num_vertices):
   return w  # joint-major: w[j*V + v]
 
 
-def bake_rig(head, num_modes=0, semantic=True, name=None):
-  """Bake ``head`` (a GnmHead) into a rigged mesh. Returns the new transform."""
+def bake_rig(head, num_modes=0, semantic=True, name=None, arkit=False):
+  """Bake ``head`` (a GnmHead) into a rigged mesh. Returns the new transform.
+
+  ``arkit`` names (and, for symmetric shapes, L/R-splits) the semantic
+  targets to ARKit-52 blendshape conventions, so mocap tools like Live Link
+  Face can drive the exported rig by name.
+  """
   worker = head.worker
   topo = head.topology
   meta = worker.bake(identity=head.identity, num_modes=num_modes,
-                     semantic=semantic)
+                     semantic=semantic, arkit=arkit)
   sess = worker.session_dir
   name = name or (head.transform + "_rig")
 

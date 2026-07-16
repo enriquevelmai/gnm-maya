@@ -182,6 +182,51 @@ def run():
     check("area reset zeros the checked region",
           all(abs(x) < 1e-9 for x in panel.head.identity))
     panel._set_all_areas(False)
+
+    # Feature zones: geometric mask through the fit solver.
+    panel.head.reset_all()
+    panel._zone_checks["nose"].setChecked(True)
+    panel._randomize_areas("identity")
+    check("feature-zone randomize drives coefficients",
+          any(abs(x) > 1e-6 for x in panel.head.identity))
+    panel._reset_areas()
+    panel._zone_checks["nose"].setChecked(False)
+
+    # History ladder: back restores the pre-randomize look, forward re-applies.
+    panel.head.reset_all()
+    panel._push_history()
+    zero_state = list(panel.head.identity)
+    panel._randomize_kind("identity")
+    randomized = list(panel.head.identity)
+    panel._hist_step(-1)
+    check("history back restores previous state",
+          all(abs(a - b) < 1e-9
+              for a, b in zip(panel.head.identity, zero_state)))
+    panel._hist_step(+1)
+    check("history forward re-applies the randomize",
+          all(abs(a - b) < 1e-9
+              for a, b in zip(panel.head.identity, randomized)))
+
+    # Variants contact sheet: 9 thumbnails render, applying one drives coeffs.
+    panel.head.reset_all()
+    vdlg = panel._open_variants()
+    ok_icons = vdlg is not None
+    if ok_icons:
+      grid_btns = [w for w in vdlg.findChildren(ui.QtWidgets.QToolButton)]
+      ok_icons = (len(grid_btns) >= 9 and
+                  all(not b.icon().isNull() for b in grid_btns[:9]))
+      grid_btns[0].click()
+    check("variants: 9 thumbnails + click applies",
+          ok_icons and any(abs(x) > 1e-6 for x in panel.head.identity))
+    if vdlg is not None:
+      vdlg.close()
+      vdlg.deleteLater()
+
+    # Live landmark fit toggles on and off cleanly.
+    from gnm_maya.ui import tools as ui_tools
+    on = ui_tools.toggle_live_landmark_fit()
+    off = ui_tools.toggle_live_landmark_fit()
+    check("live landmark fit toggles on/off", on is True and off is False)
   else:
     print("[skip] area randomize box unavailable")
 
