@@ -65,9 +65,14 @@ def _template_landmarks(model):
   return _landmarks_cache["pts"]
 
 
-def zone_weights(model, zones):
-  """Smooth (V,) weight field: 1 inside the union of zones, 0 far away."""
-  key = tuple(sorted(zones))
+def zone_weights(model, zones, shrink=1.0):
+  """Smooth (V,) weight field: 1 inside the union of zones, 0 far away.
+
+  ``shrink`` scales the falloff radii (<1 = tighter). The sculpt zones use
+  the default; the ARKit target masks use a tighter field so neighboring
+  regions' falloffs barely overlap (browInnerUp must not brush the mouth).
+  """
+  key = (tuple(sorted(zones)), round(float(shrink), 3))
   cached = _weights_cache.get(key)
   if cached is not None:
     return cached
@@ -82,6 +87,7 @@ def zone_weights(model, zones):
     pts = lm[ZONES[z]]                                 # (n, 3)
     d = np.sqrt(((verts[:, None, :] - pts[None, :, :]) ** 2).sum(-1)).min(1)
     r0, r1 = RADII[z]
+    r0, r1 = r0 * shrink, r1 * shrink
     t = np.clip((r1 - d) / max(r1 - r0, 1e-9), 0.0, 1.0)
     w = np.maximum(w, (t * t * (3.0 - 2.0 * t)).astype(np.float32))
     # Interior components (tongue, teeth, eyeballs) ride with their zone.

@@ -276,7 +276,24 @@ def fit_head_to_landmarks():
   return name
 
 
-_live_fit = {"job": None}
+_live_fit = {"job": None, "pos": {}}
+
+
+def live_landmark_fit_active():
+  return _live_fit["job"] is not None
+
+
+def _landmark_positions():
+  """{locator: (x, y, z)} for every gnmLmk_* locator currently in the scene."""
+  out = {}
+  for loc in (mc.ls("*gnmLmk_*", long=True, type="transform") or []):
+    try:
+      out[loc] = tuple(round(v, 6) for v in
+                       mc.xform(loc, query=True, translation=True,
+                                worldSpace=True))
+    except Exception:
+      pass
+  return out
 
 
 @_report_errors("Live Landmark Fit")
@@ -290,21 +307,30 @@ def toggle_live_landmark_fit():
     except Exception:
       pass
     _live_fit["job"] = None
+    _live_fit["pos"] = {}
     mc.inViewMessage(assistMessage="GNM live landmark fit: OFF",
                        position="topCenter", fade=True)
     return False
 
   _current_head()  # validate a head exists before arming the job
+  _live_fit["pos"] = _landmark_positions()  # baseline to detect real edits
 
   def _on_drag_release():
-    # Only react when the drag actually involved landmark locators.
+    # DragRelease also fires for camera tumbles/pans. Re-fitting then would
+    # DRIFT the head (each fit re-snaps the locators, moving the targets), so
+    # only solve when a landmark locator ACTUALLY changed position.
+    now = _landmark_positions()
+    if now == _live_fit["pos"]:
+      return  # camera move / unrelated drag — leave the mesh alone
     sel = mc.ls(selection=True, long=True) or []
     if not any("gnmLmk_" in s for s in sel):
+      _live_fit["pos"] = now  # e.g. Update Landmarks ran; new baseline
       return
     try:
       from gnm_maya.scene import landmarks
       head = _current_head()
       landmarks.fit_head_to_locators(head)
+      _live_fit["pos"] = _landmark_positions()  # post-fit snap = new baseline
       # Refresh the panel sliders if it is open on this head.
       from gnm_maya.ui import panel as ui
       p = getattr(ui, "_WINDOW", None)

@@ -124,7 +124,7 @@ class GnmPanel(QtWidgets.QWidget):
     self._coeff_meta = []            # (slider, kind, idx) for live thumb resize
     self._hist = []                  # coefficient-state ladder (undo/redo)
     self._hist_i = -1
-    self._hist_max = 40
+    self._hist_max = 25              # hard cap: oldest looks fall off
     from gnm_maya.core import settings as _settings
     self._thumb_px = _settings.thumb_size()
 
@@ -307,7 +307,8 @@ class GnmPanel(QtWidgets.QWidget):
     self.hist_back_btn.setFixedWidth(30)
     self.hist_back_btn.setToolTip(
         "<b>Previous look</b><br>Step back through the ladder of randomize / "
-        "sample / variant / reset states (slider drags aren't recorded).")
+        "sample / variant / reset states (last %d kept; slider drags aren't "
+        "recorded)." % self._hist_max)
     icons.decorate(self.hist_back_btn, "arrow_back", 15)
     self.hist_fwd_btn = QtWidgets.QPushButton()
     self.hist_fwd_btn.setFixedWidth(30)
@@ -315,6 +316,22 @@ class GnmPanel(QtWidgets.QWidget):
     icons.decorate(self.hist_fwd_btn, "arrow_forward", 15)
     bottom.addWidget(self.hist_back_btn)
     bottom.addWidget(self.hist_fwd_btn)
+    self.lmk_chk = QtWidgets.QPushButton("Landmarks")
+    self.lmk_chk.setCheckable(True)
+    self.lmk_chk.setToolTip(
+        "<b>Landmarks</b><br>Show/hide the 68 facial landmark locators on "
+        "this head (created on first use). Drag them to sculpt; hide to "
+        "declutter the viewport.")
+    icons.decorate(self.lmk_chk, "scatter", 15)
+    self.sculpt_chk = QtWidgets.QPushButton("Live Sculpt")
+    self.sculpt_chk.setCheckable(True)
+    self.sculpt_chk.setToolTip(
+        "<b>Live Sculpt</b><br>Refit the head automatically whenever a "
+        "landmark locator drag ends (turns Landmarks on if needed). Camera "
+        "moves never re-trigger the fit.")
+    icons.decorate(self.sculpt_chk, "tune", 15)
+    bottom.addWidget(self.lmk_chk)
+    bottom.addWidget(self.sculpt_chk)
     bottom.addStretch(1)
     bottom.addWidget(self.fit_btn)
     bottom.addWidget(self.bake_btn)
@@ -332,6 +349,8 @@ class GnmPanel(QtWidgets.QWidget):
     self.info_btn.clicked.connect(self._show_info)
     self.hist_back_btn.clicked.connect(lambda: self._hist_step(-1))
     self.hist_fwd_btn.clicked.connect(lambda: self._hist_step(+1))
+    self.lmk_chk.toggled.connect(self._on_landmarks_toggled)
+    self.sculpt_chk.toggled.connect(self._on_live_sculpt_toggled)
     self._refresh_timer.timeout.connect(self._do_refresh)
     # Per-tab and per-slider callbacks are wired where those widgets are built
     # (they depend on the head metadata, not known until construction).
@@ -1345,6 +1364,45 @@ class GnmPanel(QtWidgets.QWidget):
   def _busy_status(self, msg):
     self.status.setText(msg)
     QtWidgets.QApplication.processEvents()
+
+  def _on_landmarks_toggled(self, on):
+    """Show/hide (creating on first use) the 68 landmark locators."""
+    if not self.head:
+      return
+    from gnm_maya.scene import landmarks as lmk
+    group = self.head.transform + "_landmarks"
+    try:
+      if on:
+        if not mc.objExists(group):
+          lmk.create_landmark_locators(self.head)
+        mc.setAttr(group + ".visibility", 1)
+        self.status.setText("Landmarks shown (drag to sculpt).")
+      else:
+        if mc.objExists(group):
+          mc.setAttr(group + ".visibility", 0)
+        if self.sculpt_chk.isChecked():
+          self.sculpt_chk.setChecked(False)  # sculpting hidden pins = surprise
+        self.status.setText("Landmarks hidden.")
+    except Exception as e:
+      self._show_error("Landmarks toggle failed", e)
+
+  def _on_live_sculpt_toggled(self, on):
+    """Arm/disarm the drag-release refit; needs the landmarks visible."""
+    if not self.head:
+      return
+    from gnm_maya.ui import tools as ui_tools
+    try:
+      if on and not self.lmk_chk.isChecked():
+        self.lmk_chk.setChecked(True)  # creates/shows the locators first
+      if bool(on) != ui_tools.live_landmark_fit_active():
+        ui_tools.toggle_live_landmark_fit()
+      self.status.setText("Live Sculpt %s." % ("ON — drag a landmark; the "
+                          "head follows on release" if on else "off"))
+    except Exception as e:
+      self.sculpt_chk.blockSignals(True)
+      self.sculpt_chk.setChecked(False)
+      self.sculpt_chk.blockSignals(False)
+      self._show_error("Live Sculpt toggle failed", e)
 
   def _fit_photo(self):
     if not self.head:

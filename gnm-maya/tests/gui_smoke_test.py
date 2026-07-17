@@ -227,6 +227,20 @@ def run():
     on = ui_tools.toggle_live_landmark_fit()
     off = ui_tools.toggle_live_landmark_fit()
     check("live landmark fit toggles on/off", on is True and off is False)
+
+    # Panel toggles: Landmarks shows/hides the locator group, Live Sculpt
+    # arms the drag-release job (and turns Landmarks on when needed).
+    panel.lmk_chk.setChecked(True)
+    lgrp = panel.head.transform + "_landmarks"
+    check("Landmarks toggle creates/shows locators",
+          mc.objExists(lgrp) and mc.getAttr(lgrp + ".visibility") == 1)
+    panel.sculpt_chk.setChecked(True)
+    check("Live Sculpt toggle arms the fit job",
+          ui_tools.live_landmark_fit_active())
+    panel.lmk_chk.setChecked(False)  # hiding pins also disarms sculpting
+    check("hiding landmarks disarms Live Sculpt",
+          not ui_tools.live_landmark_fit_active()
+          and mc.getAttr(lgrp + ".visibility") == 0)
   else:
     print("[skip] area randomize box unavailable")
 

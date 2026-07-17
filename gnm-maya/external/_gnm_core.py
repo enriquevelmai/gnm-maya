@@ -151,6 +151,33 @@ ARKIT_MAP = {
     "surprise": ["browInnerUp"],
 }
 
+# Region mask per GNM source shape (zone names from _zones). GNM's semantic
+# expressions are FULL-FACE — 'surprise' raises the brows AND drops the jaw —
+# but an ARKit shape must move only its own region (browInnerUp must not
+# touch the mouth). The GNM release ships no painted region maps (the demo
+# ones were hand-authored in Blender and never published), so the smooth
+# landmark-derived zone weight fields stand in for them: each target's delta
+# is multiplied by its zone mask before writing.
+ARKIT_ZONE_MASK = {
+    "wink_left": ("eyes",),
+    "wink_right": ("eyes",),
+    "squint": ("eyes",),
+    "happy": ("eyes", "nose"),          # cheek raise lives between the two
+    "surprise": ("brows",),
+    "snarl": ("nose",),
+    "smile_wide": ("mouth",),
+    "corners_down": ("mouth",),
+    "pucker": ("mouth",),
+    "funneler": ("mouth",),
+    "lips_roll_in": ("mouth",),
+    "mouth_left": ("mouth",),
+    "mouth_right": ("mouth",),
+    "stretch_face": ("mouth", "jaw"),
+    "compress_face": ("mouth",),
+    "blow": ("mouth", "jaw"),           # cheek puff region
+    "tongue_center": ("mouth",),        # tongue verts ride with the mouth zone
+}
+
 
 def _side_masks(neutral, left_positive):
   """Smooth left/right vertex masks across the midline (x=0), ~8 mm blend."""
@@ -212,10 +239,17 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
         continue
       arkit_names = ARKIT_MAP[name]
       verts = eval_vertices(model, identity=identity, expression=expr_vec)
+      delta = verts - neutral
+      zones = ARKIT_ZONE_MASK.get(name)
+      if zones:  # confine the full-face GNM shape to its ARKit region
+        import _zones
+        # Tighter falloff than the sculpt zones so neighboring regions'
+        # masks barely overlap (browInnerUp must not brush the mouth).
+        zw = _zones.zone_weights(model, list(zones), shrink=0.7)
+        delta = delta * zw[:, None]
       if len(arkit_names) == 1:
-        write_target(arkit_names[0], verts)
+        write_target(arkit_names[0], neutral + delta)
       else:  # split one symmetric shape into ARKit Left/Right halves
-        delta = verts - neutral
         for out_name, mask in zip(arkit_names, (lmask, rmask)):
           write_target(out_name, neutral + mask[:, None] * delta)
 
