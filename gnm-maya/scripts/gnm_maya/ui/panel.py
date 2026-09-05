@@ -1885,6 +1885,23 @@ class GnmPanel(QtWidgets.QWidget):
       self._show_error("Reset failed", e)
 
 
+def _frame_head(head):
+  """Frame every model view on the head so it's in front of the user no
+  matter where the camera was left (viewFit is a no-op in batch mode)."""
+  try:
+    if head is None or not mc.objExists(head.transform):
+      return
+    mc.select(head.transform, replace=True)
+    for panel in (mc.getPanel(type="modelPanel") or []):
+      try:
+        cam = mc.modelPanel(panel, query=True, camera=True)
+        mc.viewFit(cam, fitFactor=0.85, animate=False)
+      except Exception:
+        pass
+  except Exception:
+    logger.debug("frame head skipped", exc_info=True)
+
+
 def _open_progress(parent, text):
   """A busy progress dialog, force-painted so it never shows up blank/white.
 
@@ -2032,6 +2049,7 @@ def show():
   finally:
     dlg.close()
   _WINDOW.show()
+  _frame_head(_WINDOW.head)
   logger.info("Opened GNM panel (%s)",
               "adopted %s" % target if target else "new head")
   return _WINDOW
