@@ -141,6 +141,21 @@ class GnmWorker(object):
       req["seed"] = int(seed)
     return self._sample(req)
 
+  def mask_texture(self, out, zones, maps=None, size=1024):
+    """Write a UV-space PNG of the zones/maps mask; returns the path."""
+    if not self.alive():
+      raise RuntimeError("GNM server has exited.")
+    req = {"cmd": "mask_texture", "out": str(out), "size": int(size),
+           "zones": [str(z) for z in zones]}
+    if maps:
+      req["maps"] = [str(p) for p in maps]
+    self.proc.stdin.write(json.dumps(req) + "\n")
+    self.proc.stdin.flush()
+    resp = self.proc.stdout.readline().strip()
+    if not resp.startswith("OK"):
+      raise RuntimeError("GNM mask texture failed: %s" % resp)
+    return out
+
   def zone_weights(self, zones, maps=None):
     """Per-vertex [V] weights of the given zones/maps (for viewport preview)."""
     req = {"cmd": "zone_weights", "zones": [str(z) for z in zones]}
@@ -166,12 +181,16 @@ class GnmWorker(object):
       raise RuntimeError("GNM render failed: %s" % resp)
     return out
 
-  def fit_landmarks3d(self, targets, expression=None, lam=1.0):
-    """Fit identity to 68 3D landmark positions (GNM order, object space)."""
+  def fit_landmarks3d(self, targets, expression=None, lam=1.0, prior=None):
+    """Fit identity to 68 3D landmark positions (GNM order, object space).
+    ``prior`` = current identity: the solve keeps that face where the
+    locators don't say otherwise."""
     req = {"cmd": "fit_landmarks3d", "lam": float(lam),
            "targets": [[float(a) for a in p] for p in targets]}
     if expression is not None:
       req["expression"] = [float(x) for x in expression]
+    if prior is not None:
+      req["prior"] = [float(x) for x in prior]
     return self._sample(req)
 
   def fit_photo(self, image_path=None, landmarks=None, order="ibug", lam=2.0):

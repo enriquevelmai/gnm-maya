@@ -74,7 +74,8 @@ def main():
         import _fitting
         vec = _fitting.fit_identity_3d(
             np.asarray(req["targets"], np.float64).reshape(68, 3), model,
-            expression=req.get("expression"), lam=req.get("lam", 1.0))
+            expression=req.get("expression"), lam=req.get("lam", 1.0),
+            prior=req.get("prior"))
         print("COEFF " + json.dumps([float(x) for x in vec]), flush=True)
       except Exception as e:
         print("ERR %s" % e, flush=True)
@@ -123,6 +124,17 @@ def main():
             scale=req.get("scale", 1.0), seed=req.get("seed"),
             maps=req.get("maps"))
         print("COEFF " + json.dumps(vec), flush=True)
+      except Exception as e:
+        print("ERR %s" % e, flush=True)
+      continue
+
+    if cmd == "mask_texture":  # UV-space PNG of the mask for the viewport
+      try:
+        import _zones
+        path = _zones.mask_texture(model, req.get("zones", []), req["out"],
+                                   maps=req.get("maps"),
+                                   size=req.get("size", 1024))
+        print("OK %s" % path, flush=True)
       except Exception as e:
         print("ERR %s" % e, flush=True)
       continue

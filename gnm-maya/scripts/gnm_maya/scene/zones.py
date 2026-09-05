@@ -259,3 +259,122 @@ def clear_preview(head):
       fn.deleteColorSet(PREVIEW_SET)
   except Exception:
     pass
+
+
+# --- selection-based painting ---------------------------------------------------
+#
+# Maya's own vertex-colour brush proved unreliable on this mesh (and Viewport
+# 2.0 hides vertex colours behind Arnold shaders), so the primary way to
+# author a map is the one that always works: select vertices/faces with the
+# normal tools — soft selection and symmetry included — and add/remove them.
+
+def selection_weights(transform):
+  """Per-vertex weights (0..1) of the current component selection on
+  ``transform``, honouring Maya's soft-selection falloff."""
+  fn = _fn(transform)
+  n = fn.numVertices
+  w = [0.0] * n
+  mine = set(mc.ls(transform, long=True) + mc.ls(_shape(transform), long=True))
+  sel = om2.MGlobal.getRichSelection().getSelection()
+  for i in range(sel.length()):
+    try:
+      dag, comp = sel.getComponent(i)
+    except Exception:
+      continue
+    if comp.isNull() or dag.fullPathName() not in mine:
+      continue
+    api = comp.apiType()
+    if api == om2.MFn.kMeshVertComponent:
+      fc = om2.MFnSingleIndexedComponent(comp)
+      ids = fc.getElements()
+      has_w = fc.hasWeights
+      for k in range(len(ids)):
+        wt = fc.weight(k).influence if has_w else 1.0
+        w[ids[k]] = max(w[ids[k]], float(wt))
+    elif api == om2.MFn.kMeshPolygonComponent:
+      it = om2.MItMeshPolygon(dag, comp)
+      while not it.isDone():
+        for vid in it.getVertices():
+          w[vid] = 1.0
+        it.next()
+    elif api == om2.MFn.kMeshEdgeComponent:
+      it = om2.MItMeshEdge(dag, comp)
+      while not it.isDone():
+        w[it.vertexId(0)] = 1.0
+        w[it.vertexId(1)] = 1.0
+        it.next()
+  return w
+
+
+def apply_selection(head, name, mode="add"):
+  """Fold the current selection into map ``name``: add (max), remove
+  (multiply by 1-sel) or replace. Returns the count of painted vertices."""
+  n = _fn(head.transform).numVertices
+  cur = load_map(name) if os.path.isfile(map_path(name)) else [0.0] * n
+  sel = selection_weights(head.transform)
+  if not any(s > 0.0 for s in sel):
+    raise RuntimeError("Select some vertices or faces on the head first "
+                       "(soft selection and symmetry work).")
+  if mode == "add":
+    out = [max(a, b) for a, b in zip(cur, sel)]
+  elif mode == "remove":
+    out = [a * (1.0 - b) for a, b in zip(cur, sel)]
+  else:
+    out = sel
+  save_map(name, out)
+  painted = sum(1 for x in out if x > 0.05)
+  logger.info("Map '%s': %s selection -> %d painted verts", name, mode, painted)
+  return painted
+
+
+# --- texture preview ("spotlight" that Viewport 2.0 always shows) -------------------
+
+MASK_FILE = "gnm_maskPreview_file"
+_preview_state = {"textured": None}
+
+
+def preview_mask(head, zones, maps=None, size=1024):
+  """Show the zones/maps mask on the head as a UV texture on the temporary
+  lambert (white = fully affected)."""
+  from gnm_maya.scene import material
+  out = os.path.join(settings.zones_dir(), "_preview_mask.png")
+  head.worker.mask_texture(out, zones, maps=maps, size=size)
+  _paint_display(head, True)
+  if not mc.objExists(MASK_FILE):
+    f = mc.shadingNode("file", asTexture=True, isColorManaged=True,
+                       name=MASK_FILE)
+    p2d = mc.shadingNode("place2dTexture", asUtility=True,
+                         name=MASK_FILE + "_p2d")
+    for src, dst in material._P2D_LINKS:
+      mc.connectAttr(p2d + "." + src, f + "." + dst, force=True)
+  mc.setAttr(MASK_FILE + ".fileTextureName", out, type="string")
+  try:
+    mc.setAttr(MASK_FILE + ".colorSpace", "Raw", type="string")
+  except Exception:
+    pass
+  mc.connectAttr(MASK_FILE + ".outColor", "gnm_paintDisplay_mat.color",
+                 force=True)
+  try:  # the path is reused between previews: flush VP2's texture cache
+    mc.ogs(reloadTextures=True)
+  except Exception:
+    pass
+  if _preview_state["textured"] is None:
+    panels = mc.getPanel(type="modelPanel") or []
+    _preview_state["textured"] = bool(panels) and bool(
+        mc.modelEditor(panels[0], query=True, displayTextures=True))
+  material.set_viewport_textured(True)
+  return out
+
+
+def clear_mask_preview(head):
+  from gnm_maya.scene import material
+  sh = "gnm_paintDisplay_mat"
+  if mc.objExists(sh):
+    for src in (mc.listConnections(sh + ".color", plugs=True, source=True,
+                                   destination=False) or []):
+      mc.disconnectAttr(src, sh + ".color")
+    mc.setAttr(sh + ".color", 1.0, 1.0, 1.0, type="double3")
+  _paint_display(head, False)
+  if _preview_state["textured"] is False:
+    material.set_viewport_textured(False)
+  _preview_state["textured"] = None

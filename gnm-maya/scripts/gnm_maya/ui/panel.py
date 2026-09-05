@@ -710,15 +710,16 @@ class GnmPanel(QtWidgets.QWidget):
     plbl = QtWidgets.QLabel("Painted")
     plbl.setFixedWidth(52)
     plbl.setToolTip(
-        "<b>Painted maps</b><br>Your own per-vertex masks, painted in Maya "
-        "as vertex colours (white = 1). Painted… ▸ New creates one and opens "
-        "the brush; Save bakes the strokes; they persist across scenes.")
+        "<b>Painted maps</b><br>Your own per-vertex masks. Painted… ▸ New "
+        "creates one; then select vertices/faces on the head (soft selection "
+        "and symmetry work) and Add / Remove selection. They persist across "
+        "scenes. A vertex-colour brush is also available under Brush.")
     self._map_row.addWidget(plbl)
     self._map_row.addStretch(1)
     paint_btn = QtWidgets.QPushButton("Painted…")
     paint_btn.setToolTip(
-        "<b>Painted maps</b><br>New / Edit / Save / Delete your painted "
-        "zone maps.")
+        "<b>Painted maps</b><br>New map, add/remove the current selection, "
+        "brush editing, delete.")
     icons.decorate(paint_btn, "sparkle", 15)
     paint_btn.setMenu(self._painted_menu())
     self._map_row.addWidget(paint_btn)
@@ -726,7 +727,7 @@ class GnmPanel(QtWidgets.QWidget):
     self.mask_show_btn.setCheckable(True)
     self.mask_show_btn.setToolTip(
         "<b>Show mask</b><br>Spotlight the checked zones + painted maps on "
-        "the head as vertex colours (white = fully affected).")
+        "the head (white = fully affected). Toggle off to restore materials.")
     icons.decorate(self.mask_show_btn, "grid", 15)
     self.mask_show_btn.toggled.connect(self._toggle_mask_preview)
     self._map_row.addWidget(self.mask_show_btn)
@@ -823,17 +824,28 @@ class GnmPanel(QtWidgets.QWidget):
     def _fill():
       from gnm_maya.scene import zones as zn
       menu.clear()
-      menu.addAction("New map…", self._new_painted_map)
       names = zn.list_maps()
-      edit = menu.addMenu("Edit (paint)")
+      menu.addAction("New map…", self._new_painted_map)
+      menu.addSeparator()
+      for label, mode in (("Add selection to", "add"),
+                          ("Remove selection from", "remove"),
+                          ("Replace with selection", "replace")):
+        sub = menu.addMenu(label)
+        for n in names:
+          sub.addAction(n, lambda n=n, m=mode: self._map_from_selection(n, m))
+        sub.setEnabled(bool(names))
+      menu.addSeparator()
+      brush = menu.addMenu("Brush (vertex colours)")
+      for n in names:
+        brush.addAction(n, lambda n=n: self._edit_painted_map(n))
+      brush.setEnabled(bool(names))
+      menu.addAction("Brush: save strokes", self._save_painted_maps)
+      menu.addAction("Brush: stop", self._stop_painting)
+      menu.addSeparator()
       dele = menu.addMenu("Delete")
       for n in names:
-        edit.addAction(n, lambda n=n: self._edit_painted_map(n))
         dele.addAction(n, lambda n=n: self._delete_painted_map(n))
-      edit.setEnabled(bool(names))
       dele.setEnabled(bool(names))
-      menu.addAction("Save paint (bake strokes)", self._save_painted_maps)
-      menu.addAction("Stop painting", self._stop_painting)
     menu.aboutToShow.connect(_fill)
     return menu
 
@@ -848,18 +860,29 @@ class GnmPanel(QtWidgets.QWidget):
       zn.save_map(name, [0.0] * self.head.topology.num_vertices)
       self._rebuild_painted_checks()
       self._map_checks[name].setChecked(True)
-      zn.start_paint(self.head, name)
-      self.status.setText("Painting '%s': brush white where the zone is, "
-                          "then Painted… ▸ Save paint." % name)
+      self.status.setText(
+          "Map '%s' created. Select vertices/faces on the head (soft "
+          "selection + symmetry work), then Painted… ▸ Add selection to ▸ %s."
+          % (name, name))
     except Exception as e:
       self._show_error("New painted map failed", e)
+
+  def _map_from_selection(self, name, mode):
+    from gnm_maya.scene import zones as zn
+    try:
+      painted = zn.apply_selection(self.head, name, mode)
+      self.status.setText("Map '%s': %d painted vertices." % (name, painted))
+      if self.mask_show_btn.isChecked():
+        self._toggle_mask_preview(True)  # refresh the spotlight
+    except Exception as e:
+      self._show_error("Map from selection failed", e)
 
   def _edit_painted_map(self, name):
     from gnm_maya.scene import zones as zn
     try:
       zn.start_paint(self.head, name)
-      self.status.setText("Painting '%s' — Painted… ▸ Save paint when done."
-                          % name)
+      self.status.setText("Brush on '%s' (white = 1). When done: Painted… ▸ "
+                          "Brush: save strokes, then Brush: stop." % name)
     except Exception as e:
       self._show_error("Edit painted map failed", e)
 
@@ -867,8 +890,8 @@ class GnmPanel(QtWidgets.QWidget):
     from gnm_maya.scene import zones as zn
     try:
       saved = zn.sync_from_mesh(self.head, zn.list_maps())
-      self.status.setText("Saved painted maps: %s." % (", ".join(saved)
-                                                       or "none on this head"))
+      self.status.setText("Saved brush strokes: %s." % (", ".join(saved)
+                                                        or "none on this head"))
     except Exception as e:
       self._show_error("Save paint failed", e)
 
@@ -877,7 +900,7 @@ class GnmPanel(QtWidgets.QWidget):
     try:
       zn.sync_from_mesh(self.head, zn.list_maps())
       zn.stop_paint(self.head)
-      self.status.setText("Paint saved; vertex colours hidden.")
+      self.status.setText("Brush stopped; strokes saved.")
     except Exception as e:
       self._show_error("Stop painting failed", e)
 
@@ -895,96 +918,29 @@ class GnmPanel(QtWidgets.QWidget):
       self._show_error("Delete painted map failed", e)
 
   def _toggle_mask_preview(self, on):
-    """Spotlight the checked zones + maps as vertex colours on the head."""
+    """Spotlight the checked zones + maps on the head (UV texture on a
+    temporary lambert — reliable in Viewport 2.0, unlike vertex colours)."""
     from gnm_maya.scene import zones as zn
     if not self.head:
       return
     try:
       if not on:
-        zn.clear_preview(self.head)
+        zn.clear_mask_preview(self.head)
         self.status.setText("Mask preview off.")
         return
       zones = self._checked_zones()
       maps = self._checked_maps()
       if not zones and not maps:
         self.status.setText("Check a zone or painted map to preview it.")
+        self.mask_show_btn.blockSignals(True)
         self.mask_show_btn.setChecked(False)
+        self.mask_show_btn.blockSignals(False)
         return
-      w = self.head.worker.zone_weights(zones, maps=maps)
-      zn.preview(self.head, w)
-      self.status.setText("Mask preview: %s." % ", ".join(
+      zn.preview_mask(self.head, zones, maps=maps)
+      self.status.setText("Mask preview: %s (white = fully affected)." % ", ".join(
           zones + [os.path.basename(m)[:-4] for m in maps]))
     except Exception as e:
       self._show_error("Mask preview failed", e)
-
-  def _randomize_areas(self, kind):
-    """Randomize only the checked regions/zones' ``kind`` coefficients."""
-    if not self.head:
-      return
-    labels = self._checked_areas()
-    zones = self._checked_zones()
-    maps = self._checked_maps()
-    ranges = [(label, self._area_ranges[label][kind]) for label in labels
-              if kind in self._area_ranges[label]]
-    if not labels and not zones and not maps:
-      # Nothing checked = the whole head (same as the tab's Randomize).
-      self._randomize_kind(kind)
-      return
-    if not ranges and not zones and not maps:
-      self.status.setText("Checked areas have no %s modes." % kind)
-      return
-    try:
-      for _label, (start, end) in ranges:
-        self.head.randomize_range(kind, start, end, scale=self._scale_value,
-                                  seed=self._rand_seed(),
-                                  symmetric=self._symmetry, update=False)
-      if zones or maps:
-        self.head.randomize_zones(kind, zones, scale=self._scale_value,
-                                  seed=self._rand_seed(),
-                                  symmetric=self._symmetry, update=False,
-                                  maps=maps)
-      self.head.refresh()
-      self._sync_sliders_from_head()
-      mc.select(self.head.transform, replace=True)
-      what = ([l for l, _r in ranges] + zones
-              + [os.path.basename(m)[:-4] for m in maps])
-      self.status.setText("Randomized %s: %s (scale=%.2f)."
-                          % (kind, ", ".join(what), self._scale_value))
-      self._push_history()
-    except Exception as e:
-      self._show_error("Area randomize failed", e)
-
-  def _reset_areas(self):
-    """Zero the checked regions/zones (identity + expression), leave the rest."""
-    if not self.head:
-      return
-    labels = self._checked_areas()
-    zones = self._checked_zones()
-    maps = self._checked_maps()
-    if not labels and not zones and not maps:
-      self.status.setText("Reset: nothing checked (use the bottom Reset for "
-                          "the whole head).")
-      return
-    try:
-      for kind in ("identity", "expression"):
-        idxs = []
-        for label in labels:
-          if kind in self._area_ranges[label]:
-            start, end = self._area_ranges[label][kind]
-            idxs.extend(range(start, end + 1))
-        if idxs:
-          self.head.clear(kind, idxs)
-        if zones or maps:  # scale=0 solves the zones back toward neutral
-          self.head.randomize_zones(kind, zones, scale=0.0, update=False,
-                                    maps=maps)
-      if zones or maps:
-        self.head.refresh()
-      self._sync_sliders_from_head()
-      self.status.setText("Reset areas: %s." % ", ".join(
-          labels + zones + [os.path.basename(m)[:-4] for m in maps]))
-      self._push_history()
-    except Exception as e:
-      self._show_error("Area reset failed", e)
 
   # --- variant contact sheet -------------------------------------------------
 

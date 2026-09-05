@@ -240,3 +240,71 @@ def zone_randomize(model, kind, zones, identity=None, expression=None,
   x = s["Ainv"] @ b.astype(np.float64)
   x = np.clip(x, -clamp, clamp)
   return [float(v) for v in x]
+
+
+# --- UV-space mask texture (viewport preview) ------------------------------------
+
+_texture_cache = {}   # (zone key, maps key, size) -> path
+
+
+def mask_texture(model, zones, out_path, maps=None, size=1024):
+  """Rasterise the per-vertex zone weights into a grey UV-space PNG.
+
+  Viewport 2.0 shows textures reliably where vertex colours can be a
+  no-show (e.g. through Arnold shaders), so the mask 'spotlight' is drawn
+  as a texture on a temporary lambert. Quads are split into two triangles
+  and the weights interpolated barycentrically; a 4 px dilation covers the
+  UV seams.
+  """
+  import _render
+  key = (tuple(sorted(zones)), _maps_key(maps), int(size))
+  hit = _texture_cache.get(key)
+  if hit and os.path.isfile(hit) and hit == out_path:
+    return hit
+  w = zone_weights(model, zones, maps=maps)
+  quads = np.asarray(model.quads, np.int64)               # (Q, 4)
+  uvs = np.asarray(model.quad_uvs, np.float32)             # (Q, 4, 2)
+  S = int(size)
+  img = np.zeros((S, S), np.float32)
+  cover = np.zeros((S, S), bool)
+  tri_v = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]], 0)
+  tri_uv = np.concatenate([uvs[:, [0, 1, 2]], uvs[:, [0, 2, 3]]], 0)
+  px = tri_uv[:, :, 0] * (S - 1)
+  py = (1.0 - tri_uv[:, :, 1]) * (S - 1)                   # v up -> row down
+  wt = w[tri_v]                                            # (T, 3)
+  for t in range(tri_v.shape[0]):
+    if wt[t].max() <= 0.0:
+      continue
+    x0, x1 = int(np.floor(px[t].min())), int(np.ceil(px[t].max()))
+    y0, y1 = int(np.floor(py[t].min())), int(np.ceil(py[t].max()))
+    if x1 < x0 or y1 < y0:
+      continue
+    xs, ys = np.meshgrid(np.arange(x0, x1 + 1), np.arange(y0, y1 + 1))
+    xs = xs.astype(np.float32) + 0.5
+    ys = ys.astype(np.float32) + 0.5
+    (ax, bx, cx), (ay, by, cy) = px[t], py[t]
+    det = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+    if abs(det) < 1e-9:
+      continue
+    l1 = ((bx - xs) * (cy - ys) - (cx - xs) * (by - ys)) / det
+    l2 = ((cx - xs) * (ay - ys) - (ax - xs) * (cy - ys)) / det
+    l3 = 1.0 - l1 - l2
+    inside = (l1 >= -0.002) & (l2 >= -0.002) & (l3 >= -0.002)
+    if not inside.any():
+      continue
+    val = l1 * wt[t, 0] + l2 * wt[t, 1] + l3 * wt[t, 2]
+    sub = img[y0:y1 + 1, x0:x1 + 1]
+    np.maximum(sub, np.where(inside, val, 0.0), out=sub)
+    cover[y0:y1 + 1, x0:x1 + 1] |= inside
+  # dilate a few px into uncovered pixels so seams don't show as black lines
+  for _ in range(4):
+    grown = img.copy()
+    for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+      shifted = np.roll(img, (dy, dx), axis=(0, 1))
+      grown = np.where(cover, grown, np.maximum(grown, shifted))
+    img = grown
+    cover = cover | (img > 0)
+  rgb = np.repeat((np.clip(img, 0, 1) * 255).astype(np.uint8)[:, :, None], 3, 2)
+  _render.write_png(out_path, rgb)
+  _texture_cache[key] = out_path
+  return out_path

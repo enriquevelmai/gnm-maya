@@ -284,7 +284,8 @@ def detect_landmarks(image_path, order="gnm"):
   return pts
 
 
-def fit_identity_3d(targets, model, expression=None, lam=1.0, clamp=3.0):
+def fit_identity_3d(targets, model, expression=None, lam=1.0, clamp=3.0,
+                    prior=None):
   """Fits identity coefficients to 68 TARGET 3D landmark positions.
 
   Used by the 'fit head to edited landmark locators' feature: the artist drags
@@ -301,6 +302,10 @@ def fit_identity_3d(targets, model, expression=None, lam=1.0, clamp=3.0):
     lam: Tikhonov strength, normalized by the basis column scale (coefficients
       are ~N(0,1)).
     clamp: clamp the solved coefficients to [-clamp, clamp].
+    prior: optional current identity coefficients. The ridge then pulls the
+      solution toward THIS face rather than toward the average head, so
+      everything the locators don't constrain (gender, ethnicity, overall
+      likeness) is preserved and only the dragged features change.
 
   Returns:
     float32 (identity_dim,) identity coefficients.
@@ -316,8 +321,14 @@ def fit_identity_3d(targets, model, expression=None, lam=1.0, clamp=3.0):
   A = B.reshape(B.shape[0], -1).T                     # (204, I)
   scale = float(np.linalg.norm(A, axis=0).mean())
   reg = (lam * scale) ** 2 * np.eye(A.shape[1], dtype=np.float64)
+  rhs = A.T.astype(np.float64) @ r.astype(np.float64)
+  if prior is not None:
+    p0 = np.zeros(A.shape[1], np.float64)
+    pv = np.asarray(prior, np.float64).reshape(-1)
+    p0[:min(p0.size, pv.size)] = pv[:p0.size]
+    rhs = rhs + reg @ p0                     # min ||Ax-r||^2 + lam||x-prior||^2
   sol = np.linalg.solve(A.T.astype(np.float64) @ A.astype(np.float64) + reg,
-                        A.T.astype(np.float64) @ r.astype(np.float64))
+                        rhs)
   return np.clip(sol, -clamp, clamp).astype(np.float32)
 
 

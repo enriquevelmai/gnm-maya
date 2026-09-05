@@ -119,13 +119,24 @@ def run():
     w = worker.get_worker().zone_weights(["ears"],
                                          maps=[zn.map_path("smoketest")])
     assert len(w) == nv and max(w) > 0.99, "zone_weights preview op failed"
-    zn.preview(head, w)
-    assert (mc.sets(zn.PAINT_SG, query=True) or []),         "preview did not swap to the vertex-colour display material"
-    zn.clear_preview(head)
+    # selection-based painting (soft selection off here -> weights of 1)
+    mc.select(["%s.vtx[%d]" % (name, i) for i in range(0, 300)], replace=True)
+    painted = zn.apply_selection(head, "smoketest", "replace")
+    assert painted == 300, "apply_selection painted %d, expected 300" % painted
+    mc.select(["%s.vtx[%d]" % (name, i) for i in range(0, 100)], replace=True)
+    painted = zn.apply_selection(head, "smoketest", "remove")
+    assert painted == 200, "remove selection left %d, expected 200" % painted
+    mc.select(clear=True)
+    # texture preview: UV-space PNG on a temporary lambert (VP2-safe)
+    png = zn.preview_mask(head, ["nose"], maps=[zn.map_path("smoketest")])
+    assert os.path.isfile(png) and os.path.getsize(png) > 1000, "mask PNG missing"
+    assert (mc.sets(zn.PAINT_SG, query=True) or []),         "preview did not swap to the display material"
+    assert mc.listConnections("gnm_paintDisplay_mat.color", source=True),         "mask texture not connected to the display material"
+    zn.clear_mask_preview(head)
     assert (mc.sets("gnm_skin_matSG", query=True) or []),         "per-part materials not restored after preview"
     zn.delete_map("smoketest")
     head.reset_all()
-    print("[ok] painted zone map: colour set -> file -> solver -> preview")
+    print("[ok] painted zone map: colour set/selection -> file -> solver -> texture preview")
 
     # thumbnail render op (drives the Variants contact sheet)
     png = os.path.join(tempfile.gettempdir(), "gnm_smoke_thumb.png")

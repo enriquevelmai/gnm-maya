@@ -107,7 +107,7 @@ Per-platform notes:
     **Painted** maps (below). **Randomize Identity / Expression** re-roll
     just the checked areas, **Variants…** shows a 3×3 contact sheet to pick
     from, **Reset** returns them to neutral, **Show** spotlights the mask on
-    the head as vertex colours.
+    the head as a texture.
   - **Identity / Expression** — per-mode sliders grouped by body part (with
     the shape thumbnails; double-click a slider to reset it, **Show all N**
     to expand past the first 12 modes).
@@ -121,16 +121,19 @@ Per-platform notes:
   ladder** (steps through the last 25 looks), **Landmarks** / **Live
   Sculpt** toggles, **Display** (show/hide eyes, teeth, tongue) and
   **Reset**. Re-opening the panel adopts an existing/selected head.
-- **Painted zone maps** — paint your own masks (forehead, cheeks, whatever you
-  need) straight on the head: *Areas ▸ Painted… ▸ New map…* names it and
-  opens Maya's **Paint Vertex Color** tool with a white brush; paint white where
-  the zone is, then *Save paint*. The strokes are baked to a float32 file in
+- **Painted zone maps** — author your own masks (forehead, cheeks, whatever
+  you need) with Maya's normal selection tools: *Areas ▸ Painted… ▸ New map…*
+  names it, then select vertices or faces on the head (**soft selection** gives
+  a falloff, **symmetry** mirrors it) and *Add selection to ▸ name* /
+  *Remove selection from ▸ name*. Maps are float32 files in
   `~/Documents/maya/gnm_zones` (they persist across scenes and heads), show up
-  as a checkbox next to the built-in zones, and behave exactly like them: the
+  as checkboxes next to the built-in zones and behave exactly like them: the
   random change is multiplied by your map, so **only what you painted moves**
-  (softly at the edge, since the fit stays inside the model's own shape space).
-  *Edit (paint)* re-opens the brush on an existing map; *Show* previews any
-  combination as vertex colours.
+  (softly at the edge, since the fit stays inside the model's shape space).
+  **Show** spotlights any combination on the head as a UV texture on a
+  temporary material (Viewport 2.0 shows this reliably; vertex colours don't
+  display through Arnold shaders). A vertex-colour *Brush* mode is kept under
+  the same menu for those who prefer painting strokes.
 - **Bake Rig** (Animate tab) — converts the current head into a
   **self-sufficient rigged asset**: a blendShape with the 20 named expressions
   and/or the **first N basis modes of each region** as keyframable sliders,
@@ -165,7 +168,9 @@ Per-platform notes:
 - **GNM ▸ Landmarks: Create / Update / Fit Head to Locators** — GNM's 68
   facial landmarks as locators. Drag them (optionally with the L/R mirror
   toggle) and **Fit Head to Locators** ridge-solves the identity so the head
-  reshapes to match — the landmarks are a sculpting skeleton. **Toggle Live
+  reshapes to match — the landmarks are a sculpting skeleton. The solve is
+  anchored to the *current* identity, so the sampled gender/ethnicity and
+  likeness survive: only what the locators ask for changes. **Toggle Live
   Fit (drag-to-sculpt)** re-runs the solve automatically every time a locator
   drag ends, so the head follows your hands.
 - **Describe** (Semantic tab) — type "a very happy asian woman, winking left"

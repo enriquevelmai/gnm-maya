@@ -161,6 +161,7 @@ def fit_head_to_locators(head, lam=1.0):
     targets.append([p[0] - tx, p[1] - ty, p[2] - tz])
 
   vec = head.worker.fit_landmarks3d(targets, expression=head.expression,
+                                    prior=head.identity,
                                     lam=lam)
   head.identity = [float(x) for x in vec]
   head._update()

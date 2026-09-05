@@ -202,11 +202,13 @@ def run():
     # Mask preview spotlights the zone as vertex colours, then clears.
     panel.mask_show_btn.setChecked(True)
     from gnm_maya.scene import zones as zn
-    check("mask preview writes a colour set",
-          zn.has_colorset(panel.head.transform, zn.PREVIEW_SET))
+    check("mask preview shows a UV texture on the display material",
+          bool(mc.sets(zn.PAINT_SG, query=True))
+          and bool(mc.listConnections("gnm_paintDisplay_mat.color",
+                                      source=True)))
     panel.mask_show_btn.setChecked(False)
-    check("mask preview clears",
-          not zn.has_colorset(panel.head.transform, zn.PREVIEW_SET))
+    check("mask preview clears (materials restored)",
+          bool(mc.sets("gnm_skin_matSG", query=True)))
     panel._zone_checks["nose"].setChecked(False)
 
     # Painted maps: create one programmatically, it shows up as a checkbox.
