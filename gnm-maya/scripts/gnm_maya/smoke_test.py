@@ -153,6 +153,16 @@ def run():
     assert moved_out < 1e-6, "UNPAINTED vertices moved by %.2e" % moved_out
     print("[ok] painted map is exact: painted moved %.4f, unpainted %.1e"
           % (moved_in, moved_out))
+    # repeated masked clicks RE-ROLL the area; they must not pile up
+    mags = []
+    for k in range(6):
+      head.randomize_zones("identity", [], scale=1.0, seed=10 + k,
+                           maps=[zn.map_path("smoketest")])
+      mags.append(max(abs(v) for v in head.sculpt))
+    assert mags[-1] < 3.0 * max(mags[:2]) + 1e-6, (
+        "masked randomize accumulates: %s" % ["%.4f" % m for m in mags])
+    print("[ok] repeated masked randomize does not accumulate (%s)"
+          % " ".join("%.3f" % m for m in mags))
     # the layer persists on the mesh and comes back on adopt
     head._save_state()
     twin = GnmHead.adopt(name)

@@ -137,18 +137,18 @@ def main():
     if cmd == "zone_randomize":
       try:
         import _zones
+        prev = load_sculpt(req.get("sculpt"))
         vec, draw = _zones.zone_randomize(
             model, req["kind"], req["zones"],
             identity=req.get("identity"), expression=req.get("expression"),
             scale=req.get("scale", 1.0), seed=req.get("seed"),
-            maps=req.get("maps"), return_draw=True)
+            maps=req.get("maps"), return_draw=True, sculpt_prev=prev)
         sculpt_out = req.get("sculpt_out")
         if sculpt_out:  # exact-mask layer: unmasked verts move by ZERO
           res = _zones.masked_residual(
               model, req["kind"], req["zones"], req.get("identity"),
               req.get("expression"), vec, draw,
-              sculpt_prev=load_sculpt(req.get("sculpt")),
-              maps=req.get("maps"))
+              sculpt_prev=prev, maps=req.get("maps"))
           res.astype("<f4").reshape(-1).tofile(sculpt_out)
         print("ZONE " + json.dumps({"coeffs": vec, "sculpt": sculpt_out}),
               flush=True)
