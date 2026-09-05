@@ -21,6 +21,56 @@ POSE_RANGE = 157        # +/- ~90 deg (radians * 100)
 TRANS_RANGE = 500       # +/- 5.0 units
 
 
+class CollapsibleFrame(QtWidgets.QWidget):
+  """Maya-style collapsible frame (like a frameLayout): a bold header with a
+  disclosure arrow, content below. Purely the native palette/widgets — no
+  custom styling — so it sits naturally next to Maya's own UI.
+
+    frame = CollapsibleFrame("Sample", expanded=True)
+    frame.content_layout().addWidget(...)
+  """
+
+  def __init__(self, title, expanded=True, parent=None):
+    super(CollapsibleFrame, self).__init__(parent)
+    outer = QtWidgets.QVBoxLayout(self)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(0)
+
+    self._btn = QtWidgets.QToolButton()
+    self._btn.setText(title)
+    self._btn.setCheckable(True)
+    self._btn.setChecked(bool(expanded))
+    self._btn.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+    self._btn.setArrowType(QtCore.Qt.DownArrow if expanded
+                           else QtCore.Qt.RightArrow)
+    self._btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                            QtWidgets.QSizePolicy.Fixed)
+    self._btn.setAutoRaise(True)
+    f = self._btn.font()
+    f.setBold(True)
+    self._btn.setFont(f)
+    outer.addWidget(self._btn)
+
+    self._body = QtWidgets.QFrame()
+    self._body.setFrameShape(QtWidgets.QFrame.StyledPanel)
+    self._lay = QtWidgets.QVBoxLayout(self._body)
+    self._lay.setContentsMargins(8, 6, 8, 6)
+    self._body.setVisible(bool(expanded))
+    outer.addWidget(self._body)
+
+    self._btn.toggled.connect(self._on_toggled)
+
+  def _on_toggled(self, on):
+    self._body.setVisible(on)
+    self._btn.setArrowType(QtCore.Qt.DownArrow if on else QtCore.Qt.RightArrow)
+
+  def content_layout(self):
+    return self._lay
+
+  def set_expanded(self, on):
+    self._btn.setChecked(bool(on))
+
+
 class TickSlider(QtWidgets.QSlider):
   """Vertical slider that resets to zero on double-click."""
 

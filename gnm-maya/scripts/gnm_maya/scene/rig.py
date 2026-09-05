@@ -42,17 +42,19 @@ def _read_weights(session_dir, num_joints, num_vertices):
   return w  # joint-major: w[j*V + v]
 
 
-def bake_rig(head, num_modes=0, semantic=True, name=None, arkit=False):
+def bake_rig(head, num_modes=0, semantic=True, name=None, arkit=False,
+             visemes=False):
   """Bake ``head`` (a GnmHead) into a rigged mesh. Returns the new transform.
 
   ``arkit`` names (and, for symmetric shapes, L/R-splits) the semantic
   targets to ARKit-52 blendshape conventions, so mocap tools like Live Link
-  Face can drive the exported rig by name.
+  Face can drive the exported rig by name. ``visemes`` adds the mouth-shape
+  targets that scene/animate.lip_sync keys from audio.
   """
   worker = head.worker
   topo = head.topology
   meta = worker.bake(identity=head.identity, num_modes=num_modes,
-                     semantic=semantic, arkit=arkit)
+                     semantic=semantic, arkit=arkit, visemes=visemes)
   sess = worker.session_dir
   name = name or (head.transform + "_rig")
 

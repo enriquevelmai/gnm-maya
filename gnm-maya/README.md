@@ -94,42 +94,61 @@ Per-platform notes:
 
 ## Use
 
-- **GNM ▸ GNM Head Panel…** — opens *GNM Head (Generative aNthropometric
-  Model)*, docked to the Maya main window. A **Semantic** tab samples identity
-  by **Gender × Ethnicity** and **20 named expressions** (Smile Wide, Happy,
-  Wink Left, …) — GNM's conditional-VAE decoders, run in numpy (no TensorFlow).
-  Its **Area Randomize** box masks randomization to checked face regions
-  (left/right eye, lower face, head, …): lock a face you like and re-roll just
-  one area, or zero a region without touching the rest. **Feature zones**
-  (Nose / Mouth / Jaw / Brows / Eyes) go finer than the model's own groups: a
-  fit solver confines the change geometrically while staying in coefficient
-  space (soft isolation — a small natural falloff halo remains). The
-  **Variants…** button renders a 3×3 contact sheet of candidate
-  randomizations — click a face to apply it, Re-roll for nine more. And the
-  **◀ ▶ history ladder** (bottom-left) steps back/forward through every
-  randomize / sample / variant / reset, so a good face is never lost.
-  Then tabs for **Identity / Expression / Pose / Translation** with
-  per-coefficient sliders grouped by body part
-  (double-click a slider to reset it). Each tab has its own **Randomize** and
-  **Reset** buttons; each group has **Reset** and a **Show all N** button to
-  expand past the first 12 modes. Plus a **Symmetry (L/R)** toggle (mirrors
-  edits across the left/right eye regions and eye joints), a **random scale**
-  (next to Randomize Identity), a **Texture** toggle (applies the bundled GNM
-  edgeflow PNG, or **…** to pick your own), and **Reset Selected / All** (resets
-  the GNM head(s) you have selected, or the panel's head if none). Re-opening
-  the panel adopts an existing/selected head rather than spawning a new one.
-- **Bake Rig** (panel button) — converts the current head into a
-  **self-sufficient rigged asset**: a blendShape node with the 20 named
-  expressions and/or the **first N basis modes of each region** as keyframable
-  sliders (happy, smile_wide, left_eye_region_000, …) plus a neck → head → eyes
-  joint chain. An **ARKit-52 target names** option renames (and L/R-splits
-  symmetric) semantic targets to Live Link Face conventions (eyeBlinkLeft,
-  mouthSmileLeft/Right, …) so mocap tools drive the exported rig by name —
-  coverage is partial (only credible GNM↔ARKit correspondences)
-  joint chain skinned with GNM's own weights. The result needs no GNM runtime
-  and exports to FBX. (Note: Maya's plain LBS skips GNM's pose correctives, so
-  extreme neck/eye rotations deviate slightly.)
-- **Fit from Photo…** (panel button) — detects 68 facial landmarks with
+- **GNM ▸ GNM Head Panel…** — opens *GNM Head*, docked to the Maya main
+  window, with five tabs built from Maya-style collapsible frames:
+  - **Create** — *Sample*: identity by **Gender × Ethnicity** (with a
+    **Strength** dial), **20 named expressions**, a **Describe** field
+    ("a very happy asian woman, winking left") and **From Photo…**.
+    *Blend* (collapsed): morph between two classes with a Mix slider.
+    *Areas*: everything that randomizes only what you check —
+    **Regions** (the model's own basis groups: exact coefficient masks),
+    **Zones** (Nose / Mouth / Jaw / Brows / Eyes / Ears / Back head —
+    geometric masks solved back into coefficients), and your own
+    **Painted** maps (below). **Randomize Identity / Expression** re-roll
+    just the checked areas, **Variants…** shows a 3×3 contact sheet to pick
+    from, **Reset** returns them to neutral, **Show** spotlights the mask on
+    the head as vertex colours.
+  - **Identity / Expression** — per-mode sliders grouped by body part (with
+    the shape thumbnails; double-click a slider to reset it, **Show all N**
+    to expand past the first 12 modes).
+  - **Pose** — neck / head / eye rotations and the global translation.
+  - **Animate** — *Bake Rig* (20 expressions, optional **ARKit-52 names**,
+    **Visemes**, N basis modes per region), *Lip Sync* (audio → mouth keys),
+    *Idle motion* (blinks + head sway) and *Export* (FBX, static copy).
+
+  Around the tabs: **Symmetry (L/R)**, **Texture** (bundled edgeflow map or
+  your own PNG), thumbnail size, **ⓘ** help; bottom row: the **◀ ▶ history
+  ladder** (steps through the last 25 looks), **Landmarks** / **Live
+  Sculpt** toggles, **Display** (show/hide eyes, teeth, tongue) and
+  **Reset**. Re-opening the panel adopts an existing/selected head.
+- **Painted zone maps** — paint your own masks (forehead, cheeks, whatever you
+  need) straight on the head: *Areas ▸ Painted… ▸ New map…* names it and
+  opens Maya's **Paint Vertex Color** tool with a white brush; paint white where
+  the zone is, then *Save paint*. The strokes are baked to a float32 file in
+  `~/Documents/maya/gnm_zones` (they persist across scenes and heads), show up
+  as a checkbox next to the built-in zones, and behave exactly like them: the
+  random change is multiplied by your map, so **only what you painted moves**
+  (softly at the edge, since the fit stays inside the model's own shape space).
+  *Edit (paint)* re-opens the brush on an existing map; *Show* previews any
+  combination as vertex colours.
+- **Bake Rig** (Animate tab) — converts the current head into a
+  **self-sufficient rigged asset**: a blendShape with the 20 named expressions
+  and/or the **first N basis modes of each region** as keyframable sliders,
+  plus a neck → head → eyes joint chain skinned with GNM's own weights. The
+  **ARKit-52** option renames the targets to Live Link Face conventions
+  (eyeBlinkLeft, jawOpen, mouthSmileLeft/Right, …) — each one **region-masked**
+  (the full-face GNM shapes are cut down to their ARKit region, e.g.
+  browInnerUp no longer moves the mouth) and symmetric shapes **L/R-split**.
+  **Visemes** adds seven mouth-shape targets (viseme_B…H) for lip-sync. The
+  result needs no GNM runtime and exports to FBX. (Maya's plain LBS skips GNM's
+  pose correctives, so extreme neck/eye rotations deviate slightly.)
+- **Lip Sync** (Animate tab) — pick a dialogue **.wav/.ogg** (and optionally
+  its text), select the baked rig, **Generate Keys**: the audio is analysed
+  with **Rhubarb Lip Sync** (MIT; ~85 MB, downloaded into the module folder on
+  first use), the rig's viseme targets are keyed cue by cue, and the clip is
+  dropped onto the time slider. **Idle motion** adds random blinks and a gentle
+  head sway over the playback range.
+- **From Photo…** (Create tab) — detects 68 facial landmarks with
   **MediaPipe (fully local)** and least-squares fits the identity coefficients
   (damped Gauss-Newton over shape + weak-perspective camera). Produces a
   *likeness* from front-view information, not a scan match. The ~290 MB
@@ -292,6 +311,25 @@ only speak up when something newer exists):
     only (e.g. `v1.0.0`).
   - **Dev** — the tip of the `master` branch by commit id: fixes arrive as
     soon as they are pushed, before they are packaged in a release.
+
+## Community & inspiration
+
+GNM Head shipped in July 2026 and the community built around it fast. Ideas
+adopted here, with thanks:
+
+- [GNM Head Add-on for Blender](https://github.com/derQwertzus/GNM-Head-Add-on-for-Blender)
+  (derQwertzus) — region-masked randomization with weight-painted masks,
+  the viewport "spotlight" of a mask, and per-part visibility toggles.
+- [GNM-Studio](https://github.com/Saganaki22/GNM-Studio) (Saganaki22) — ARKit
+  52 morph targets for webcam/mocap workflows.
+- [gnm-houdini](https://github.com/chordee/gnm-houdini) (chordee) — a
+  "semantic strength" dial that scales a sampled identity.
+- [projectdome](https://github.com/mainza-ai/projectdome) (mainza-ai) and
+  [GNM-Bridge-for-3ds-Max](https://github.com/imanshirani/GNM-Bridge-for-3ds-Max)
+  (Iman Shirani) — phoneme-driven lip-sync and idle blinks; here via
+  [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync).
+- [GNM Head Importer for Blender](https://nathandickson365.gumroad.com/l/GNMImporter)
+  (Nathan Dickson) — the reference for a slider-first artist UI.
 
 ## Citation
 

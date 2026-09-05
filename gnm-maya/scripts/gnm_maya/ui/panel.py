@@ -68,8 +68,8 @@ _OBJECT_NAME = "gnmHeadPanel"
 _TITLE = "GNM Head (Generative aNthropometric Model)"
 
 from gnm_maya.ui.widgets import (TickSlider, VSlider, CoeffGroup,
-                                 MAX_PER_GROUP, COEFF_RANGE,
-                                 POSE_RANGE, TRANS_RANGE)
+                                 CollapsibleFrame, MAX_PER_GROUP,
+                                 COEFF_RANGE, POSE_RANGE, TRANS_RANGE)
 # Explains what the sliders are (surfaced via the "?" info button and tooltips).
 PCA_INFO = (
     "GNM's Identity and Expression controls are a statistical shape basis, "
@@ -82,7 +82,15 @@ PCA_INFO = (
     "identity + 383 expression modes in total). Use 'Show all N' on a group to "
     "reveal the rest.\n\n"
     "Every mode is also drivable from script by its global index, e.g.:\n"
-    "    head.set_expression(97, 2.0)"
+    "    head.set_expression(97, 2.0)\n\n"
+    "Create tab:\n"
+    "• Sample draws a fresh random face/expression for the chosen class "
+    "(repeated clicks vary); Strength scales the sampled identity.\n"
+    "• Blend fixes the random latent, so dragging Mix interpolates smoothly "
+    "between two classes; Re-roll picks a new latent.\n"
+    "• Areas restrict Randomize/Variants/Reset to checked regions (model "
+    "basis groups), feature zones (geometric masks) and your own painted "
+    "maps (Painted… ▸ New, then paint white = 1 with the vertex-colour brush)."
 ) % MAX_PER_GROUP
 
 
@@ -294,13 +302,13 @@ class GnmPanel(QtWidgets.QWidget):
 
     if self.head is not None:
       meta = self.head.topology.meta
-      self.tabs.addTab(self._semantic_tab(), "Semantic")
+      self.tabs.addTab(self._create_tab(), "Create")
       self.tabs.addTab(self._coeff_tab(meta["identity_groups"], "identity"),
                        "Identity")
       self.tabs.addTab(self._coeff_tab(meta["expression_groups"], "expression"),
                        "Expression")
       self.tabs.addTab(self._pose_tab(meta["joint_names"]), "Pose")
-      self.tabs.addTab(self._translation_tab(), "Translation")
+      self.tabs.addTab(self._animate_tab(), "Animate")
 
     bottom = QtWidgets.QHBoxLayout()
     self.hist_back_btn = QtWidgets.QPushButton()
@@ -333,10 +341,41 @@ class GnmPanel(QtWidgets.QWidget):
     bottom.addWidget(self.lmk_chk)
     bottom.addWidget(self.sculpt_chk)
     bottom.addStretch(1)
-    bottom.addWidget(self.fit_btn)
-    bottom.addWidget(self.bake_btn)
+    self.display_btn = QtWidgets.QPushButton("Display")
+    self.display_btn.setToolTip(
+        "<b>Display</b><br>Show/hide anatomical parts (eyes, teeth, tongue) "
+        "of every GNM head in the viewport.")
+    icons.decorate(self.display_btn, "tune", 15)
+    self.display_btn.setMenu(self._display_menu())
+    bottom.addWidget(self.display_btn)
     bottom.addWidget(self.reset_btn)
     outer.addLayout(bottom)
+
+  def _display_menu(self):
+    from gnm_maya.scene import material
+    menu = QtWidgets.QMenu(self)
+    for label in material.COMPONENT_GROUPS:
+      act = menu.addAction(label)
+      act.setCheckable(True)
+      act.setChecked(True)
+      act.toggled.connect(
+          lambda on, l=label: self._set_component_visible(l, on))
+
+    def _sync():  # reflect the real shader state each time it opens
+      for act in menu.actions():
+        act.blockSignals(True)
+        act.setChecked(material.component_visible(act.text()))
+        act.blockSignals(False)
+    menu.aboutToShow.connect(_sync)
+    return menu
+
+  def _set_component_visible(self, label, on):
+    from gnm_maya.scene import material
+    try:
+      material.set_component_visible(label, on)
+      self.status.setText("%s %s." % (label, "shown" if on else "hidden"))
+    except Exception as e:
+      self._show_error("Display toggle failed", e)
 
   def register_controllers(self):
     self.sym_chk.toggled.connect(self._on_symmetry_toggled)
@@ -431,112 +470,108 @@ class GnmPanel(QtWidgets.QWidget):
     sc.setWidget(inner)
     return sc
 
-  def _semantic_tab(self):
-    """Sample identity (gender x ethnicity) and named expressions."""
+  def _create_tab(self):
+    """Sample / Blend / Areas as Maya-style collapsible frames."""
     container = QtWidgets.QWidget()
     v = QtWidgets.QVBoxLayout(container)
+    v.setSpacing(4)
     sem = self.head.topology.meta.get("semantic", {})
 
     if not sem.get("available"):
       msg = QtWidgets.QLabel(
-          "Semantic sampler unavailable.\n\nIt needs the decoder models in the "
-          "vendored GNM repo and the 'h5py' package in the bundled runtime. "
-          "Rebuild the runtime (build_module.py) or update GNM to enable it.")
+          "Semantic sampler unavailable — it needs the decoder models in the "
+          "vendored GNM repo and 'h5py' in the runtime. Update GNM or rebuild "
+          "the runtime to enable Sample/Blend.")
       msg.setWordWrap(True)
-      msg.setAlignment(QtCore.Qt.AlignTop)
       v.addWidget(msg)
-      v.addWidget(self._area_box())  # needs only group metadata, not decoders
+      areas = CollapsibleFrame("Areas", expanded=True)
+      areas.content_layout().addWidget(self._area_box())
+      v.addWidget(areas)
       v.addStretch(1)
-      return container
+      return self._scroll(container)
 
     def _pretty(x):
       return x.replace("_", " ").title()
 
-    def _sample_reset_row(sample_btn, reset_slot, reset_tip):
-      """A Sample + Reset button pair so the user can toggle a sample on/off."""
-      reset_btn = QtWidgets.QPushButton("Reset")
-      reset_btn.setToolTip(reset_tip)
-      icons.decorate(reset_btn, "restart", 15)
-      reset_btn.clicked.connect(reset_slot)
-      host = QtWidgets.QWidget()
-      hb = QtWidgets.QHBoxLayout(host)
-      hb.setContentsMargins(0, 0, 0, 0)
-      hb.addWidget(sample_btn, 1)
-      hb.addWidget(reset_btn)
-      return host
+    def _small(text, tip, icon_name, slot):
+      b = QtWidgets.QPushButton(text)
+      b.setToolTip(tip)
+      icons.decorate(b, icon_name, 15)
+      b.clicked.connect(slot)
+      return b
 
-    idbox = QtWidgets.QGroupBox("Identity")
-    il = QtWidgets.QFormLayout(idbox)
+    # --- Sample ---------------------------------------------------------------
+    sample = CollapsibleFrame("Sample", expanded=True)
+    g = QtWidgets.QGridLayout()
+    g.setHorizontalSpacing(8)
     self.sem_gender = QtWidgets.QComboBox()
-    self.sem_gender.addItems([_pretty(g) for g in sem["gender"]])
+    self.sem_gender.addItems([_pretty(x) for x in sem["gender"]])
     self.sem_ethnicity = QtWidgets.QComboBox()
-    self.sem_ethnicity.addItems([_pretty(e) for e in sem["ethnicity"]])
-    id_btn = QtWidgets.QPushButton("Sample Identity")
-    id_btn.setToolTip(
-        "<b>Sample identity</b><br>Draw a random face for the chosen gender × "
-        "ethnicity. Click again for a different one.")
-    icons.decorate(id_btn, "face", 16)
-    id_btn.clicked.connect(self._sample_identity)
-    il.addRow("Gender", self.sem_gender)
-    il.addRow("Ethnicity", self.sem_ethnicity)
-    il.addRow(_sample_reset_row(
-        id_btn, self._reset_semantic_identity,
-        "<b>Reset identity</b><br>Back to the neutral (average) head."))
-
-    exbox = QtWidgets.QGroupBox("Expression")
-    el = QtWidgets.QFormLayout(exbox)
+    self.sem_ethnicity.addItems([_pretty(x) for x in sem["ethnicity"]])
+    self.sem_strength = QtWidgets.QDoubleSpinBox()
+    self.sem_strength.setRange(0.0, 2.0)
+    self.sem_strength.setSingleStep(0.1)
+    self.sem_strength.setValue(1.0)
+    self.sem_strength.setToolTip(
+        "<b>Identity strength</b><br>Scales a sampled identity toward "
+        "(0) or past (>1) the average head — tone a face down or push it.")
+    id_btn = _small("Sample Identity",
+                    "<b>Sample identity</b><br>Draw a random face for the "
+                    "chosen gender × ethnicity. Click again for another.",
+                    "face", self._sample_identity)
+    id_rst = _small("", "<b>Reset identity</b><br>Back to the average head.",
+                    "restart", self._reset_semantic_identity)
+    id_rst.setFixedWidth(28)
     self.sem_expr = QtWidgets.QComboBox()
-    self.sem_expr.addItems([_pretty(e) for e in sem["expression"]])
-    ex_btn = QtWidgets.QPushButton("Sample Expression")
-    ex_btn.setToolTip(
-        "<b>Sample expression</b><br>Apply the selected named expression with "
-        "a fresh random variation. Click again to re-roll it.")
-    icons.decorate(ex_btn, "mood", 16)
-    ex_btn.clicked.connect(self._sample_expression)
-    el.addRow("Expression", self.sem_expr)
-    el.addRow(_sample_reset_row(
-        ex_btn, self._reset_semantic_expression,
-        "<b>Reset expression</b><br>Back to neutral (no expression)."))
-
-    # Natural-language description (local lexicon, or local Ollama if running).
-    descbox = QtWidgets.QGroupBox("Describe")
-    dl = QtWidgets.QHBoxLayout(descbox)
+    self.sem_expr.addItems([_pretty(x) for x in sem["expression"]])
+    ex_btn = _small("Sample Expression",
+                    "<b>Sample expression</b><br>Apply the selected named "
+                    "expression with a fresh random variation.",
+                    "mood", self._sample_expression)
+    ex_rst = _small("", "<b>Reset expression</b><br>Back to neutral.",
+                    "restart", self._reset_semantic_expression)
+    ex_rst.setFixedWidth(28)
+    g.addWidget(QtWidgets.QLabel("Gender"), 0, 0)
+    g.addWidget(self.sem_gender, 0, 1)
+    g.addWidget(QtWidgets.QLabel("Ethnicity"), 0, 2)
+    g.addWidget(self.sem_ethnicity, 0, 3)
+    g.addWidget(QtWidgets.QLabel("Strength"), 0, 4)
+    g.addWidget(self.sem_strength, 0, 5)
+    g.addWidget(id_btn, 0, 6)
+    g.addWidget(id_rst, 0, 7)
+    g.addWidget(QtWidgets.QLabel("Expression"), 1, 0)
+    g.addWidget(self.sem_expr, 1, 1)
+    g.addWidget(ex_btn, 1, 6)
+    g.addWidget(ex_rst, 1, 7)
     self.desc_edit = QtWidgets.QLineEdit()
     self.desc_edit.setPlaceholderText(
-        "e.g. 'a very happy asian woman, winking left'")
+        "Describe: e.g. 'a very happy asian woman, winking left'")
     self.desc_edit.setToolTip(
-        "<b>Describe a face</b><br>Type a natural-language description; a "
-        "local lexicon (or Ollama, if running) maps it to identity and "
-        "expression. Press Enter or Apply.")
-    desc_btn = QtWidgets.QPushButton("Apply")
-    desc_btn.setToolTip(
-        "<b>Apply description</b><br>Interpret the text and drive the head to "
-        "match.")
-    icons.decorate(desc_btn, "sparkle", 16)
-    desc_btn.clicked.connect(self._apply_description)
+        "<b>Describe a face</b><br>Natural-language description → identity "
+        "and expression (local lexicon, or Ollama if running). Enter applies.")
+    desc_btn = _small("Apply", "<b>Apply description</b>", "sparkle",
+                      self._apply_description)
     self.desc_edit.returnPressed.connect(self._apply_description)
-    dl.addWidget(self.desc_edit, 1)
-    dl.addWidget(desc_btn)
-    v.addWidget(descbox)
+    g.addWidget(self.desc_edit, 2, 0, 1, 6)
+    g.addWidget(desc_btn, 2, 6, 1, 2)
+    g.addWidget(self.fit_btn, 3, 6, 1, 2)
+    g.setColumnStretch(1, 1)
+    g.setColumnStretch(3, 1)
+    sample.content_layout().addLayout(g)
+    v.addWidget(sample)
 
-    row = QtWidgets.QHBoxLayout()
-    row.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
-    row.addWidget(idbox)
-    row.addWidget(exbox)
-    v.addLayout(row)
+    # --- Blend (collapsed: a power feature) --------------------------------------
+    blend = CollapsibleFrame("Blend", expanded=False)
+    blend.content_layout().addWidget(self._blend_box(sem, _pretty))
+    v.addWidget(blend)
 
-    v.addWidget(self._blend_box(sem, _pretty))
-    v.addWidget(self._area_box())
-
-    note = QtWidgets.QLabel(
-        "Categorical sampling draws a fresh random latent (repeated clicks "
-        "vary). Blending fixes the latent, so dragging a Mix slider "
-        "interpolates smoothly between the two chosen classes; 'Re-roll' picks "
-        "a new latent. Sliders on the other tabs update to match.")
-    note.setWordWrap(True)
-    v.addWidget(note)
+    # --- Areas ----------------------------------------------------------------
+    areas = CollapsibleFrame("Areas  (randomize only what's checked)",
+                             expanded=True)
+    areas.content_layout().addWidget(self._area_box())
+    v.addWidget(areas)
     v.addStretch(1)
-    return container
+    return self._scroll(container)
 
   def _mix_slider(self):
     s = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -548,8 +583,11 @@ class GnmPanel(QtWidgets.QWidget):
     return s, lbl
 
   def _blend_box(self, sem, pretty):
-    box = QtWidgets.QGroupBox("Blending  (drag Mix to interpolate)")
+    box = QtWidgets.QWidget()
+    box.setToolTip("Drag a Mix slider to interpolate between two classes; "
+                   "the random latent stays fixed so it morphs smoothly.")
     g = QtWidgets.QGridLayout(box)
+    g.setContentsMargins(0, 0, 0, 0)
 
     # Expression blend
     self.blend_expr1 = QtWidgets.QComboBox()
@@ -622,94 +660,127 @@ class GnmPanel(QtWidgets.QWidget):
     self._area_ranges = areas
     self._area_checks = {}
 
-    box = QtWidgets.QGroupBox(
-        "Area Randomize  (masked: only checked regions change)")
+    box = QtWidgets.QWidget()
     v = QtWidgets.QVBoxLayout(box)
+    v.setContentsMargins(0, 0, 0, 0)
+    v.setSpacing(3)
 
     def _nice(label):
       # "left_eye_region" -> "Left Eye"
       return label.replace("_region", "").replace("_", " ").title()
 
-    grid = QtWidgets.QGridLayout()
-    per_row = 6
-    for n, label in enumerate(areas):
+    # Row 1: model regions (basis groups — exact coefficient masks).
+    r1 = QtWidgets.QHBoxLayout()
+    rlbl = QtWidgets.QLabel("Regions")
+    rlbl.setFixedWidth(52)
+    rlbl.setToolTip("<b>Model regions</b><br>GNM's own basis groups: an "
+                    "exact coefficient mask (only these modes change).")
+    r1.addWidget(rlbl)
+    for label in areas:
       cb = QtWidgets.QCheckBox(_nice(label))
-      kinds = " + ".join(sorted(areas[label]))
-      cb.setToolTip("<b>%s</b><br>Include this region in Area Randomize / "
-                    "Reset (%s modes)." % (_nice(label), kinds))
-      grid.addWidget(cb, n // per_row, n % per_row)
+      cb.setToolTip("<b>%s</b><br>%s modes." % (_nice(label),
+                    " + ".join(sorted(areas[label]))))
+      r1.addWidget(cb)
       self._area_checks[label] = cb
-    v.addLayout(grid)
+    r1.addStretch(1)
+    v.addLayout(r1)
 
-    # Finer feature zones (geometric mask + fit solver — the model has no
-    # nose/mouth-only basis, so these solve the nearest in-model shape whose
-    # change is confined to the zone; isolation is soft by design).
+    # Row 2: feature zones (geometric masks solved back to coefficients).
     self._zone_checks = {}
-    zrow = QtWidgets.QHBoxLayout()
-    zlbl = QtWidgets.QLabel("Feature zones:")
+    r2 = QtWidgets.QHBoxLayout()
+    zlbl = QtWidgets.QLabel("Zones")
+    zlbl.setFixedWidth(52)
     zlbl.setToolTip(
-        "<b>Feature zones</b><br>Geometry-masked randomize for areas the "
-        "model has no dedicated modes for. A fit solver confines the change "
-        "to the zone (softly — a small natural falloff halo remains).")
-    zrow.addWidget(zlbl)
-    for zone in ("nose", "mouth", "jaw", "brows", "eyes"):
-      cb = QtWidgets.QCheckBox(zone.title())
-      cb.setToolTip(
-          "<b>%s zone</b><br>Randomize/reset only the %s area "
-          "(fit-based geometric mask with smooth falloff)."
-          % (zone.title(), zone))
-      zrow.addWidget(cb)
+        "<b>Feature zones</b><br>Geometry masks for areas the model has no "
+        "dedicated modes for; a fit solver confines the change to the zone "
+        "(softly — a natural falloff halo remains).")
+    r2.addWidget(zlbl)
+    for zone in ("nose", "mouth", "jaw", "brows", "eyes", "ears", "back_head"):
+      cb = QtWidgets.QCheckBox(zone.replace("_", " ").title())
+      cb.setToolTip("<b>%s</b><br>Geometric mask with smooth falloff."
+                    % zone.replace("_", " ").title())
+      r2.addWidget(cb)
       self._zone_checks[zone] = cb
-    zrow.addStretch(1)
-    var_btn = QtWidgets.QPushButton("Variants…")
-    var_btn.setToolTip(
-        "<b>Variant contact sheet</b><br>Render 9 candidate randomizations "
-        "of the checked areas/zones as thumbnails — click one to apply it. "
-        "With nothing checked, full randomize.")
-    icons.decorate(var_btn, "grid", 15)
-    var_btn.clicked.connect(self._open_variants)
-    zrow.addWidget(var_btn)
-    v.addLayout(zrow)
+    r2.addStretch(1)
+    v.addLayout(r2)
 
+    # Row 3: painted maps (your own vertex-colour masks) + preview.
+    self._map_checks = {}
+    self._map_row = QtWidgets.QHBoxLayout()
+    plbl = QtWidgets.QLabel("Painted")
+    plbl.setFixedWidth(52)
+    plbl.setToolTip(
+        "<b>Painted maps</b><br>Your own per-vertex masks, painted in Maya "
+        "as vertex colours (white = 1). Painted… ▸ New creates one and opens "
+        "the brush; Save bakes the strokes; they persist across scenes.")
+    self._map_row.addWidget(plbl)
+    self._map_row.addStretch(1)
+    paint_btn = QtWidgets.QPushButton("Painted…")
+    paint_btn.setToolTip(
+        "<b>Painted maps</b><br>New / Edit / Save / Delete your painted "
+        "zone maps.")
+    icons.decorate(paint_btn, "sparkle", 15)
+    paint_btn.setMenu(self._painted_menu())
+    self._map_row.addWidget(paint_btn)
+    self.mask_show_btn = QtWidgets.QPushButton("Show")
+    self.mask_show_btn.setCheckable(True)
+    self.mask_show_btn.setToolTip(
+        "<b>Show mask</b><br>Spotlight the checked zones + painted maps on "
+        "the head as vertex colours (white = fully affected).")
+    icons.decorate(self.mask_show_btn, "grid", 15)
+    self.mask_show_btn.toggled.connect(self._toggle_mask_preview)
+    self._map_row.addWidget(self.mask_show_btn)
+    v.addLayout(self._map_row)
+    self._rebuild_painted_checks()
+
+    # Row 4: actions.
     row = QtWidgets.QHBoxLayout()
-    all_btn = QtWidgets.QPushButton("All")
-    all_btn.setFixedWidth(44)
-    all_btn.clicked.connect(lambda: self._set_all_areas(True))
-    none_btn = QtWidgets.QPushButton("None")
-    none_btn.setFixedWidth(48)
-    none_btn.clicked.connect(lambda: self._set_all_areas(False))
-    rid_btn = QtWidgets.QPushButton("Randomize Identity")
+    rl = QtWidgets.QLabel("Randomize")
+    rl.setFixedWidth(60)
+    row.addWidget(rl)
+    rid_btn = QtWidgets.QPushButton("Identity")
     rid_btn.setToolTip(
-        "<b>Randomize identity in checked areas</b><br>Draw new random values "
-        "for ONLY the checked regions' identity modes, scaled by 'random "
-        "scale'. Unchecked regions keep their current shape.")
+        "<b>Randomize identity</b> in the checked regions/zones/maps only "
+        "(scaled by 'random scale'). Nothing checked = whole head.")
     icons.decorate(rid_btn, "dice", 15)
     rid_btn.clicked.connect(lambda: self._randomize_areas("identity"))
-    rex_btn = QtWidgets.QPushButton("Randomize Expression")
+    rex_btn = QtWidgets.QPushButton("Expression")
     rex_btn.setToolTip(
-        "<b>Randomize expression in checked areas</b><br>Same mask applied to "
-        "the expression modes. Honors the Symmetry (L/R) toggle.")
+        "<b>Randomize expression</b> in the checked areas only. Honors "
+        "Symmetry (L/R).")
     icons.decorate(rex_btn, "dice", 15)
     rex_btn.clicked.connect(lambda: self._randomize_areas("expression"))
-    rst_btn = QtWidgets.QPushButton("Reset Areas")
+    var_btn = QtWidgets.QPushButton("Variants…")
+    var_btn.setToolTip(
+        "<b>Variants</b><br>A 3×3 contact sheet of candidates for the checked "
+        "areas — click a face to apply it.")
+    icons.decorate(var_btn, "grid", 15)
+    var_btn.clicked.connect(self._open_variants)
+    rst_btn = QtWidgets.QPushButton("Reset")
     rst_btn.setToolTip(
-        "<b>Reset checked areas</b><br>Zero the checked regions' identity AND "
-        "expression modes; everything else is untouched.")
+        "<b>Reset checked areas</b><br>Zero the checked regions and solve "
+        "the checked zones/maps back toward neutral; the rest is untouched.")
     icons.decorate(rst_btn, "restart", 15)
     rst_btn.clicked.connect(self._reset_areas)
-    row.addWidget(all_btn)
-    row.addWidget(none_btn)
-    row.addStretch(1)
+    none_btn = QtWidgets.QPushButton("None")
+    none_btn.setFixedWidth(48)
+    none_btn.setToolTip("Uncheck every region, zone and map.")
+    none_btn.clicked.connect(lambda: self._set_all_areas(False))
     row.addWidget(rid_btn)
     row.addWidget(rex_btn)
+    row.addWidget(var_btn)
+    row.addSpacing(8)
     for w in self._make_scale_controls():
       row.addWidget(w)
+    row.addStretch(1)
     row.addWidget(rst_btn)
+    row.addWidget(none_btn)
     v.addLayout(row)
     return box
 
   def _set_all_areas(self, on):
-    for cb in self._area_checks.values():
+    for cb in list(self._area_checks.values()) + \
+        list(self._zone_checks.values()) + list(self._map_checks.values()):
       cb.setChecked(bool(on))
 
   def _checked_areas(self):
@@ -719,18 +790,147 @@ class GnmPanel(QtWidgets.QWidget):
     return [z for z, cb in getattr(self, "_zone_checks", {}).items()
             if cb.isChecked()]
 
+  # --- painted maps ----------------------------------------------------------
+
+  def _checked_maps(self):
+    """File paths of the checked painted maps, with this head's latest brush
+    strokes baked first so the solver always uses what you see."""
+    from gnm_maya.scene import zones as zn
+    names = [n for n, cb in getattr(self, "_map_checks", {}).items()
+             if cb.isChecked()]
+    if names and self.head:
+      zn.sync_from_mesh(self.head, names)
+    return [zn.map_path(n) for n in names]
+
+  def _rebuild_painted_checks(self):
+    from gnm_maya.scene import zones as zn
+    checked = {n for n, cb in self._map_checks.items() if cb.isChecked()}
+    for cb in self._map_checks.values():
+      self._map_row.removeWidget(cb)
+      cb.deleteLater()
+    self._map_checks = {}
+    for i, name in enumerate(zn.list_maps()):
+      cb = QtWidgets.QCheckBox(name)
+      cb.setToolTip("<b>%s</b><br>Painted map (vertex colours → weights)."
+                    % name)
+      cb.setChecked(name in checked)
+      self._map_row.insertWidget(1 + i, cb)
+      self._map_checks[name] = cb
+
+  def _painted_menu(self):
+    menu = QtWidgets.QMenu(self)
+
+    def _fill():
+      from gnm_maya.scene import zones as zn
+      menu.clear()
+      menu.addAction("New map…", self._new_painted_map)
+      names = zn.list_maps()
+      edit = menu.addMenu("Edit (paint)")
+      dele = menu.addMenu("Delete")
+      for n in names:
+        edit.addAction(n, lambda n=n: self._edit_painted_map(n))
+        dele.addAction(n, lambda n=n: self._delete_painted_map(n))
+      edit.setEnabled(bool(names))
+      dele.setEnabled(bool(names))
+      menu.addAction("Save paint (bake strokes)", self._save_painted_maps)
+      menu.addAction("Stop painting", self._stop_painting)
+    menu.aboutToShow.connect(_fill)
+    return menu
+
+  def _new_painted_map(self):
+    from gnm_maya.scene import zones as zn
+    name, ok = QtWidgets.QInputDialog.getText(
+        self, "New painted map", "Name (e.g. forehead, cheeks):")
+    name = "".join(c for c in name.strip() if c.isalnum() or c in "_-")
+    if not ok or not name:
+      return
+    try:
+      zn.save_map(name, [0.0] * self.head.topology.num_vertices)
+      self._rebuild_painted_checks()
+      self._map_checks[name].setChecked(True)
+      zn.start_paint(self.head, name)
+      self.status.setText("Painting '%s': brush white where the zone is, "
+                          "then Painted… ▸ Save paint." % name)
+    except Exception as e:
+      self._show_error("New painted map failed", e)
+
+  def _edit_painted_map(self, name):
+    from gnm_maya.scene import zones as zn
+    try:
+      zn.start_paint(self.head, name)
+      self.status.setText("Painting '%s' — Painted… ▸ Save paint when done."
+                          % name)
+    except Exception as e:
+      self._show_error("Edit painted map failed", e)
+
+  def _save_painted_maps(self):
+    from gnm_maya.scene import zones as zn
+    try:
+      saved = zn.sync_from_mesh(self.head, zn.list_maps())
+      self.status.setText("Saved painted maps: %s." % (", ".join(saved)
+                                                       or "none on this head"))
+    except Exception as e:
+      self._show_error("Save paint failed", e)
+
+  def _stop_painting(self):
+    from gnm_maya.scene import zones as zn
+    try:
+      zn.sync_from_mesh(self.head, zn.list_maps())
+      zn.stop_paint(self.head)
+      self.status.setText("Paint saved; vertex colours hidden.")
+    except Exception as e:
+      self._show_error("Stop painting failed", e)
+
+  def _delete_painted_map(self, name):
+    from gnm_maya.scene import zones as zn
+    ans = QtWidgets.QMessageBox.question(
+        self, "Delete painted map", "Delete the painted map '%s'?" % name)
+    if ans != QtWidgets.QMessageBox.Yes:
+      return
+    try:
+      zn.delete_map(name)
+      self._rebuild_painted_checks()
+      self.status.setText("Deleted painted map '%s'." % name)
+    except Exception as e:
+      self._show_error("Delete painted map failed", e)
+
+  def _toggle_mask_preview(self, on):
+    """Spotlight the checked zones + maps as vertex colours on the head."""
+    from gnm_maya.scene import zones as zn
+    if not self.head:
+      return
+    try:
+      if not on:
+        zn.clear_preview(self.head)
+        self.status.setText("Mask preview off.")
+        return
+      zones = self._checked_zones()
+      maps = self._checked_maps()
+      if not zones and not maps:
+        self.status.setText("Check a zone or painted map to preview it.")
+        self.mask_show_btn.setChecked(False)
+        return
+      w = self.head.worker.zone_weights(zones, maps=maps)
+      zn.preview(self.head, w)
+      self.status.setText("Mask preview: %s." % ", ".join(
+          zones + [os.path.basename(m)[:-4] for m in maps]))
+    except Exception as e:
+      self._show_error("Mask preview failed", e)
+
   def _randomize_areas(self, kind):
     """Randomize only the checked regions/zones' ``kind`` coefficients."""
     if not self.head:
       return
     labels = self._checked_areas()
     zones = self._checked_zones()
-    if not labels and not zones:
-      self.status.setText("Area Randomize: no areas or zones checked.")
-      return
+    maps = self._checked_maps()
     ranges = [(label, self._area_ranges[label][kind]) for label in labels
               if kind in self._area_ranges[label]]
-    if not ranges and not zones:
+    if not labels and not zones and not maps:
+      # Nothing checked = the whole head (same as the tab's Randomize).
+      self._randomize_kind(kind)
+      return
+    if not ranges and not zones and not maps:
       self.status.setText("Checked areas have no %s modes." % kind)
       return
     try:
@@ -738,15 +938,17 @@ class GnmPanel(QtWidgets.QWidget):
         self.head.randomize_range(kind, start, end, scale=self._scale_value,
                                   seed=self._rand_seed(),
                                   symmetric=self._symmetry, update=False)
-      if zones:
+      if zones or maps:
         self.head.randomize_zones(kind, zones, scale=self._scale_value,
                                   seed=self._rand_seed(),
-                                  symmetric=self._symmetry, update=False)
+                                  symmetric=self._symmetry, update=False,
+                                  maps=maps)
       self.head.refresh()
       self._sync_sliders_from_head()
       mc.select(self.head.transform, replace=True)
-      what = [l for l, _r in ranges] + zones
-      self.status.setText("Randomized %s areas: %s (scale=%.2f)."
+      what = ([l for l, _r in ranges] + zones
+              + [os.path.basename(m)[:-4] for m in maps])
+      self.status.setText("Randomized %s: %s (scale=%.2f)."
                           % (kind, ", ".join(what), self._scale_value))
       self._push_history()
     except Exception as e:
@@ -758,8 +960,10 @@ class GnmPanel(QtWidgets.QWidget):
       return
     labels = self._checked_areas()
     zones = self._checked_zones()
-    if not labels and not zones:
-      self.status.setText("Reset Areas: no areas or zones checked.")
+    maps = self._checked_maps()
+    if not labels and not zones and not maps:
+      self.status.setText("Reset: nothing checked (use the bottom Reset for "
+                          "the whole head).")
       return
     try:
       for kind in ("identity", "expression"):
@@ -770,12 +974,14 @@ class GnmPanel(QtWidgets.QWidget):
             idxs.extend(range(start, end + 1))
         if idxs:
           self.head.clear(kind, idxs)
-        if zones:  # scale=0 solves the zones back toward neutral
-          self.head.randomize_zones(kind, zones, scale=0.0, update=False)
-      if zones:
+        if zones or maps:  # scale=0 solves the zones back toward neutral
+          self.head.randomize_zones(kind, zones, scale=0.0, update=False,
+                                    maps=maps)
+      if zones or maps:
         self.head.refresh()
       self._sync_sliders_from_head()
-      self.status.setText("Reset areas: %s." % ", ".join(labels + zones))
+      self.status.setText("Reset areas: %s." % ", ".join(
+          labels + zones + [os.path.basename(m)[:-4] for m in maps]))
       self._push_history()
     except Exception as e:
       self._show_error("Area reset failed", e)
@@ -792,9 +998,10 @@ class GnmPanel(QtWidgets.QWidget):
     vec = cid if kind == "identity" else cex
     labels = self._checked_areas()
     zones = self._checked_zones()
+    maps = self._checked_maps()
     ranges = [self._area_ranges[l][kind] for l in labels
               if kind in self._area_ranges[l]]
-    if not ranges and not zones:               # nothing checked: full re-roll
+    if not ranges and not zones and not maps:  # nothing checked: full re-roll
       ranges = [(0, len(vec) - 1)]
     for start, end in ranges:
       for i in range(start, end + 1):
@@ -803,10 +1010,10 @@ class GnmPanel(QtWidgets.QWidget):
       for a, b in self.head.expression_mirror.items():
         if a < b:
           vec[b] = vec[a]
-    if zones:
+    if zones or maps:
       out = self.head.worker.zone_randomize(
           kind, zones, identity=cid, expression=cex,
-          scale=self._scale_value, seed=seed)
+          scale=self._scale_value, seed=seed, maps=maps)
       vec[:] = [float(x) for x in out]
       if kind == "expression" and self._symmetry:
         for a, b in self.head.expression_mirror.items():
@@ -947,6 +1154,11 @@ class GnmPanel(QtWidgets.QWidget):
       self.head.semantic_identity(self.sem_gender.currentIndex(),
                                   self.sem_ethnicity.currentIndex(),
                                   seed=random.randint(0, 1 << 30))
+      strength = float(getattr(self, "sem_strength", None).value()
+                       if hasattr(self, "sem_strength") else 1.0)
+      if abs(strength - 1.0) > 1e-6:
+        self.head.identity = [x * strength for x in self.head.identity]
+        self.head.refresh()
       self._sync_sliders_from_head()
       mc.select(self.head.transform, replace=True)
       self.status.setText("Sampled identity: %s / %s" % (
@@ -1016,6 +1228,7 @@ class GnmPanel(QtWidgets.QWidget):
     return container
 
   def _pose_tab(self, joint_names):
+    """Joint rotations + global translation in one tab."""
     container = QtWidgets.QWidget()
     v = QtWidgets.QVBoxLayout(container)
 
@@ -1030,7 +1243,13 @@ class GnmPanel(QtWidgets.QWidget):
                    "rotation.")
     icons.decorate(rst, "restart", 16)
     rst.clicked.connect(self._reset_pose)
-    v.addWidget(self._tab_header([rnd] + self._make_scale_controls() + [rst]))
+    rst_t = QtWidgets.QPushButton("Reset Translation")
+    rst_t.setToolTip("<b>Reset translation</b><br>Move the head back to the "
+                     "world origin.")
+    icons.decorate(rst_t, "restart", 16)
+    rst_t.clicked.connect(self._reset_translation)
+    v.addWidget(self._tab_header([rnd] + self._make_scale_controls()
+                                 + [rst, rst_t]))
 
     host = QtWidgets.QWidget()
     row = QtWidgets.QHBoxLayout(host)
@@ -1046,24 +1265,7 @@ class GnmPanel(QtWidgets.QWidget):
         self._sliders.append(w)
         self._pose_sliders[(j, axis)] = w
       row.addWidget(box)
-    v.addWidget(self._scroll(host), 1)
-    return container
-
-  def _translation_tab(self):
-    container = QtWidgets.QWidget()
-    v = QtWidgets.QVBoxLayout(container)
-
-    rst = QtWidgets.QPushButton("Reset Translation")
-    rst.setToolTip("<b>Reset translation</b><br>Move the head back to the "
-                   "world origin.")
-    icons.decorate(rst, "restart", 16)
-    rst.clicked.connect(self._reset_translation)
-    v.addWidget(self._tab_header([rst]))
-
-    host = QtWidgets.QWidget()
-    row = QtWidgets.QHBoxLayout(host)
-    row.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
-    box = QtWidgets.QGroupBox("global")
+    box = QtWidgets.QGroupBox("translation")
     bl = QtWidgets.QHBoxLayout(box)
     for axis, aname in enumerate(("tx", "ty", "tz")):
       w = VSlider(aname, TRANS_RANGE, 100.0, 2,
@@ -1075,6 +1277,212 @@ class GnmPanel(QtWidgets.QWidget):
     row.addWidget(box)
     v.addWidget(self._scroll(host), 1)
     return container
+
+  def _animate_tab(self):
+    """Bake Rig / Lip Sync / Idle / Export as collapsible frames."""
+    container = QtWidgets.QWidget()
+    v = QtWidgets.QVBoxLayout(container)
+    v.setSpacing(4)
+    groups = self.head.topology.meta.get("expression_groups", [])
+    max_group = max((end - start + 1 for _n, start, end in groups), default=150)
+
+    # --- Bake Rig ---------------------------------------------------------------
+    bake = CollapsibleFrame("Bake Rig", expanded=True)
+    g = QtWidgets.QGridLayout()
+    self.bake_sem_chk = QtWidgets.QCheckBox("20 named expressions")
+    self.bake_sem_chk.setChecked(True)
+    self.bake_sem_chk.setToolTip("One blendShape target per semantic "
+                                 "expression (happy, wink_left, …).")
+    self.bake_arkit_chk = QtWidgets.QCheckBox("ARKit-52 names")
+    self.bake_arkit_chk.setToolTip(
+        "<b>ARKit-52 target names</b><br>Rename the expressions to Live Link "
+        "Face blendshapes (eyeBlinkLeft, jawOpen, mouthSmileLeft/Right, …), "
+        "region-masked and L/R-split so mocap can drive them by name.")
+    self.bake_visemes_chk = QtWidgets.QCheckBox("Visemes (lip-sync)")
+    self.bake_visemes_chk.setChecked(True)
+    self.bake_visemes_chk.setToolTip(
+        "<b>Visemes</b><br>7 mouth-shape targets (viseme_B…H) that Lip Sync "
+        "below keys from audio.")
+    self.bake_modes_spin = QtWidgets.QSpinBox()
+    self.bake_modes_spin.setRange(0, max_group)
+    self.bake_modes_spin.setToolTip(
+        "Also bake the first N basis modes of EACH region as targets "
+        "(left_eye_region_000, …). 0 = none.")
+    g.addWidget(self.bake_sem_chk, 0, 0)
+    g.addWidget(self.bake_arkit_chk, 0, 1)
+    g.addWidget(self.bake_visemes_chk, 0, 2)
+    g.addWidget(QtWidgets.QLabel("Basis modes / region"), 1, 0)
+    g.addWidget(self.bake_modes_spin, 1, 1)
+    g.addWidget(self.bake_btn, 1, 2)
+    g.setColumnStretch(3, 1)
+    bake.content_layout().addLayout(g)
+    v.addWidget(bake)
+
+    # --- Lip Sync -----------------------------------------------------------------
+    lip = CollapsibleFrame("Lip Sync  (audio → mouth keys on a baked rig)",
+                           expanded=True)
+    g = QtWidgets.QGridLayout()
+    self.audio_edit = QtWidgets.QLineEdit()
+    self.audio_edit.setPlaceholderText("dialogue .wav / .ogg")
+    self.audio_edit.setToolTip("Recording to analyse (Rhubarb Lip Sync, "
+                               "downloaded on first use, ~85 MB).")
+    audio_btn = QtWidgets.QPushButton()
+    audio_btn.setFixedWidth(28)
+    icons.decorate(audio_btn, "folder_open", 15)
+    audio_btn.setToolTip("Choose the audio file.")
+    audio_btn.clicked.connect(self._browse_audio)
+    self.dialog_edit = QtWidgets.QLineEdit()
+    self.dialog_edit.setPlaceholderText(
+        "optional: the spoken text (improves phoneme timing)")
+    lip_btn = QtWidgets.QPushButton("Generate Keys")
+    lip_btn.setToolTip(
+        "<b>Lip sync</b><br>Analyse the audio, key the selected rig's viseme "
+        "targets, and drop the clip on the time slider.")
+    icons.decorate(lip_btn, "mood", 15)
+    lip_btn.clicked.connect(self._lip_sync)
+    g.addWidget(QtWidgets.QLabel("Audio"), 0, 0)
+    g.addWidget(self.audio_edit, 0, 1)
+    g.addWidget(audio_btn, 0, 2)
+    g.addWidget(QtWidgets.QLabel("Text"), 1, 0)
+    g.addWidget(self.dialog_edit, 1, 1, 1, 2)
+    g.addWidget(lip_btn, 0, 3, 2, 1)
+    g.setColumnStretch(1, 1)
+    lip.content_layout().addLayout(g)
+    v.addWidget(lip)
+
+    # --- Idle -----------------------------------------------------------------------
+    idle = CollapsibleFrame("Idle motion", expanded=False)
+    h = QtWidgets.QHBoxLayout()
+    self.idle_blink_chk = QtWidgets.QCheckBox("Blinks")
+    self.idle_blink_chk.setChecked(True)
+    self.idle_sway_chk = QtWidgets.QCheckBox("Head sway")
+    self.idle_sway_chk.setChecked(True)
+    idle_btn = QtWidgets.QPushButton("Add Idle Keys")
+    idle_btn.setToolTip(
+        "<b>Idle motion</b><br>Key random blinks and a gentle head sway over "
+        "the playback range on the selected rig.")
+    icons.decorate(idle_btn, "shuffle", 15)
+    idle_btn.clicked.connect(self._idle_keys)
+    h.addWidget(self.idle_blink_chk)
+    h.addWidget(self.idle_sway_chk)
+    h.addStretch(1)
+    h.addWidget(idle_btn)
+    idle.content_layout().addLayout(h)
+    v.addWidget(idle)
+
+    # --- Export -----------------------------------------------------------------------
+    exp = CollapsibleFrame("Export", expanded=True)
+    h = QtWidgets.QHBoxLayout()
+    fbx_btn = QtWidgets.QPushButton("Export Rig (FBX)…")
+    fbx_btn.setToolTip("<b>Export FBX</b><br>Selected baked rig → FBX with "
+                       "blendshapes + skin.")
+    icons.decorate(fbx_btn, "download", 15)
+    fbx_btn.clicked.connect(self._export_fbx)
+    copy_btn = QtWidgets.QPushButton("Static Copy")
+    copy_btn.setToolTip("<b>Static copy</b><br>Duplicate the current head as "
+                        "a plain mesh (no GNM link) — e.g. to keep a variant.")
+    icons.decorate(copy_btn, "cube", 15)
+    copy_btn.clicked.connect(self._static_copy)
+    h.addWidget(fbx_btn)
+    h.addWidget(copy_btn)
+    h.addStretch(1)
+    exp.content_layout().addLayout(h)
+    v.addWidget(exp)
+    v.addStretch(1)
+    return self._scroll(container)
+
+  # --- animate actions -------------------------------------------------------
+
+  def _target_rig(self):
+    """The rig to animate: selected baked rig, else the last one baked."""
+    from gnm_maya.scene import animate
+    for s in (mc.ls(selection=True, long=False) or []):
+      try:
+        animate.blendshape_of(s)
+        return s
+      except Exception:
+        continue
+    last = getattr(self, "_last_rig", None)
+    if last and mc.objExists(last):
+      return last
+    raise RuntimeError("Select a baked GNM rig (or bake one first).")
+
+  def _browse_audio(self):
+    from gnm_maya.core import settings
+    path, _ = QtWidgets.QFileDialog.getOpenFileName(
+        self, "Choose dialogue audio", settings.last_photo_dir(),
+        "Audio (*.wav *.ogg)")
+    if path:
+      self.audio_edit.setText(path)
+      settings.set_last_photo_dir(path)
+
+  def _lip_sync(self):
+    from gnm_maya.scene import animate
+    from gnm_maya.services import rhubarb
+    audio = self.audio_edit.text().strip()
+    if not audio:
+      self._browse_audio()
+      audio = self.audio_edit.text().strip()
+      if not audio:
+        return
+    try:
+      rig = self._target_rig()
+      if not rhubarb.available():
+        ans = mc.confirmDialog(
+            title="Lip Sync", icon="question",
+            message="Lip sync needs Rhubarb Lip Sync (~85 MB, MIT), "
+                    "installed inside the module folder. Download now?",
+            button=["Download", "Cancel"], defaultButton="Download",
+            cancelButton="Cancel", dismissString="Cancel")
+        if ans != "Download":
+          return
+        from gnm_maya.ui.progress import MayaProgress
+        with MayaProgress("Rhubarb Lip Sync", maximum=1) as prog:
+          rhubarb.ensure(lambda m: prog.set(1, m))
+      self._busy_status("Analysing audio (Rhubarb)…")
+      data = rhubarb.run(audio, self.dialog_edit.text().strip() or None)
+      cues = data.get("mouthCues", [])
+      n = animate.lip_sync(rig, cues)
+      animate.attach_audio(audio)
+      self.status.setText("Lip sync: %d mouth cues keyed on %s (%.1fs)."
+                          % (n, rig, data.get("metadata", {})
+                             .get("duration", 0.0)))
+    except Exception as e:
+      self._show_error("Lip Sync failed", e)
+
+  def _idle_keys(self):
+    from gnm_maya.scene import animate
+    try:
+      rig = self._target_rig()
+      start = mc.playbackOptions(query=True, minTime=True)
+      end = mc.playbackOptions(query=True, maxTime=True)
+      n = animate.idle(rig, start, end,
+                       blinks=self.idle_blink_chk.isChecked(),
+                       sway=self.idle_sway_chk.isChecked(),
+                       seed=self._rand_seed())
+      self.status.setText("Idle: %d keys on %s (frames %d–%d)."
+                          % (n, rig, start, end))
+    except Exception as e:
+      self._show_error("Idle keys failed", e)
+
+  def _export_fbx(self):
+    from gnm_maya.ui import tools as ui_tools
+    if not (mc.ls(selection=True) or []):
+      last = getattr(self, "_last_rig", None)
+      if last and mc.objExists(last):
+        mc.select(last, replace=True)
+    ui_tools.export_selected_fbx()
+
+  def _static_copy(self):
+    if not self.head:
+      return
+    try:
+      dup = mc.duplicate(self.head.transform,
+                         name=self.head.transform + "_copy")[0]
+      mc.select(dup, replace=True)
+      self.status.setText("Static copy: %s" % dup)
+    except Exception as e:
+      self._show_error("Static copy failed", e)
 
   # --- slider value sync ---------------------------------------------------
 
@@ -1307,57 +1715,25 @@ class GnmPanel(QtWidgets.QWidget):
   def _bake_rig(self):
     if not self.head:
       return
-    # Options dialog: semantic set and/or N individual basis-mode targets.
-    dlg = QtWidgets.QDialog(self)
-    dlg.setWindowTitle("Bake Rig options")
-    form = QtWidgets.QFormLayout(dlg)
-    sem_chk = QtWidgets.QCheckBox()
-    sem_chk.setChecked(True)
-    sem_chk.setToolTip("One target per named expression (happy, wink_left, …).")
+    semantic = self.bake_sem_chk.isChecked()
+    arkit = self.bake_arkit_chk.isChecked() and semantic
+    visemes = self.bake_visemes_chk.isChecked() and semantic
+    num_modes = self.bake_modes_spin.value()
     groups = self.head.topology.meta.get("expression_groups", [])
-    max_group = max((end - start + 1 for _n, start, end in groups), default=150)
-    modes_spin = QtWidgets.QSpinBox()
-    modes_spin.setRange(0, max_group)
-    modes_spin.setValue(0)
-    modes_spin.setToolTip(
-        "Additionally bake the first N basis modes OF EACH region\n"
-        "(%d regions: %s) as individual targets, named by basis\n"
-        "(e.g. left_eye_region_000, lower_face_region_000, ...)."
-        % (len(groups), ", ".join(n for n, _s, _e in groups)))
-    arkit_chk = QtWidgets.QCheckBox()
-    arkit_chk.setToolTip(
-        "Name the semantic targets after ARKit-52 blendshapes (eyeBlinkLeft,\n"
-        "jawOpen-style names; symmetric shapes are split into Left/Right\n"
-        "halves), so Live Link Face and other mocap tools can drive the\n"
-        "exported rig by name. Coverage is partial: only credible\n"
-        "GNM-to-ARKit correspondences are mapped; unmapped shapes keep\n"
-        "their GNM names.")
-    form.addRow("20 semantic expressions", sem_chk)
-    form.addRow("ARKit-52 target names", arkit_chk)
-    form.addRow("Basis modes per region", modes_spin)
-    btns = QtWidgets.QDialogButtonBox(
-        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-    btns.accepted.connect(dlg.accept)
-    btns.rejected.connect(dlg.reject)
-    form.addRow(btns)
-    run_dialog = getattr(dlg, "exec_", None) or dlg.exec  # PySide2 vs 6
-    if not run_dialog():
-      return
-    semantic = sem_chk.isChecked()
-    arkit = arkit_chk.isChecked() and semantic
-    num_modes = modes_spin.value()
     if not semantic and num_modes == 0:
       self.status.setText("Nothing to bake (no targets selected).")
       return
-
     from gnm_maya.scene import rig
     try:
-      n_targets = (20 if semantic else 0) + num_modes * max(1, len(groups))
+      n_targets = ((20 if semantic else 0) + (7 if visemes else 0)
+                   + num_modes * max(1, len(groups)))
       self._busy_status("Baking rig (~%d targets + joints)…" % n_targets)
       name = rig.bake_rig(self.head, num_modes=num_modes, semantic=semantic,
-                          arkit=arkit)
-      self.status.setText("Baked rig: %s (sliders + joints%s)"
-                          % (name, ", ARKit names" if arkit else ""))
+                          arkit=arkit, visemes=visemes)
+      self._last_rig = name
+      self.status.setText("Baked rig: %s (%s)" % (name, ", ".join(
+          x for x, on in (("expressions", semantic), ("ARKit names", arkit),
+                          ("visemes", visemes)) if on) or "modes"))
     except Exception as e:
       self._show_error("Bake Rig failed", e)
 

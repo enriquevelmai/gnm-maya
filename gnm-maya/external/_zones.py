@@ -21,6 +21,8 @@ zone, giving a zone-local reset. Runs in the module runtime (numpy).
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 import _fitting
@@ -54,8 +56,57 @@ ZONE_COMPONENTS = {
     "eyes":  ("left_eye", "right_eye"),
 }
 
-_weights_cache = {}   # tuple(sorted(zones)) -> (V,) float32
+# Procedural (non-landmark) zones, derived from the template geometry.
+PROC_ZONES = ("ears", "back_head")
+
+_weights_cache = {}   # (zone key, shrink, maps key) -> (V,) float32
 _landmarks_cache = {"pts": None}
+
+
+def _skin_vertex_ids(model):
+  quads = np.asarray(model.quads, np.int64)
+  qidx = np.asarray(model.quad_indices_for_group("skin"), np.int64)
+  return np.unique(quads[qidx].reshape(-1))
+
+
+def _proc_zone_weight(model, verts, zone, shrink):
+  """Ears: falloff from the extreme-|x| skin verts (ear tips). Back of head:
+  everything behind the ear plane, blending in over a few cm."""
+  skin = _skin_vertex_ids(model)
+  sx = verts[skin]
+  xmax = float(np.abs(sx[:, 0]).max())
+  tips = skin[np.abs(sx[:, 0]) > 0.92 * xmax]
+  if zone == "ears":
+    pts = verts[tips]
+    d = np.sqrt(((verts[:, None, :] - pts[None, :, :]) ** 2).sum(-1)).min(1)
+    r0, r1 = 0.015 * shrink, 0.045 * shrink
+    t = np.clip((r1 - d) / max(r1 - r0, 1e-9), 0.0, 1.0)
+    return (t * t * (3.0 - 2.0 * t)).astype(np.float32)
+  # back_head: behind the ears' mean z (the head faces +z in GNM space)
+  z_ear = float(verts[tips][:, 2].mean())
+  band = 0.04 * shrink
+  t = np.clip((z_ear - 0.01 - verts[:, 2]) / band, 0.0, 1.0)
+  w = (t * t * (3.0 - 2.0 * t)).astype(np.float32)
+  w[np.setdiff1d(np.arange(verts.shape[0]), skin)] = 0.0  # skin only
+  return w
+
+
+def _maps_key(maps):
+  key = []
+  for p in maps or ():
+    try:
+      key.append((p, os.path.getmtime(p), os.path.getsize(p)))
+    except OSError:
+      key.append((p, 0, 0))
+  return tuple(key)
+
+
+def _load_map(path, n):
+  w = np.fromfile(path, "<f4")
+  if w.size != n:
+    raise ValueError("painted map %s has %d values, mesh has %d vertices"
+                     % (path, w.size, n))
+  return np.clip(w, 0.0, 1.0).astype(np.float32)
 
 
 def _template_landmarks(model):
@@ -65,14 +116,16 @@ def _template_landmarks(model):
   return _landmarks_cache["pts"]
 
 
-def zone_weights(model, zones, shrink=1.0):
+def zone_weights(model, zones, shrink=1.0, maps=None):
   """Smooth (V,) weight field: 1 inside the union of zones, 0 far away.
 
-  ``shrink`` scales the falloff radii (<1 = tighter). The sculpt zones use
-  the default; the ARKit target masks use a tighter field so neighboring
-  regions' falloffs barely overlap (browInnerUp must not brush the mouth).
+  ``zones`` may mix landmark zones (ZONES), procedural ones (PROC_ZONES) and
+  ``maps`` — paths to user-PAINTED float32 [V] weight files (Maya vertex
+  colours baked by scene/zones.py); all are max-combined. ``shrink`` scales
+  the falloff radii (<1 = tighter): the sculpt zones use the default, the
+  ARKit target masks a tighter field so neighboring regions barely overlap.
   """
-  key = (tuple(sorted(zones)), round(float(shrink), 3))
+  key = (tuple(sorted(zones)), round(float(shrink), 3), _maps_key(maps))
   cached = _weights_cache.get(key)
   if cached is not None:
     return cached
@@ -81,9 +134,15 @@ def zone_weights(model, zones, shrink=1.0):
   lm = _template_landmarks(model)                      # (68, 3)
   w = np.zeros(verts.shape[0], np.float32)
   quads = np.asarray(model.quads, np.int64)
+  for p in maps or ():
+    w = np.maximum(w, _load_map(p, verts.shape[0]))
   for z in zones:
+    if z in PROC_ZONES:
+      w = np.maximum(w, _proc_zone_weight(model, verts, z, shrink))
+      continue
     if z not in ZONES:
-      raise ValueError("unknown zone %r (have: %s)" % (z, sorted(ZONES)))
+      raise ValueError("unknown zone %r (have: %s)"
+                       % (z, sorted(ZONES) + list(PROC_ZONES)))
     pts = lm[ZONES[z]]                                 # (n, 3)
     d = np.sqrt(((verts[:, None, :] - pts[None, :, :]) ** 2).sum(-1)).min(1)
     r0, r1 = RADII[z]
@@ -121,13 +180,13 @@ _ANCHOR_STEP = 2
 _LAM_REL = 2e-4
 
 
-def _solver(model, kind, zones):
-  key = (kind, tuple(sorted(zones)))
+def _solver(model, kind, zones, maps=None):
+  key = (kind, tuple(sorted(zones)), _maps_key(maps))
   hit = _solver_cache.pop(key, None)
   if hit is None:
     B = _basis(model, kind)
     K = B.shape[0]
-    w = zone_weights(model, zones)
+    w = zone_weights(model, zones, maps=maps)
     sel = np.flatnonzero(w > 1e-4)
     rest = np.setdiff1d(np.arange(w.size, dtype=np.int64),
                         sel)[::_ANCHOR_STEP]
@@ -149,8 +208,9 @@ def _solver(model, kind, zones):
 
 
 def zone_randomize(model, kind, zones, identity=None, expression=None,
-                   scale=1.0, seed=None, clamp=4.0):
-  """One new full ``kind`` coefficient vector, changed only inside ``zones``.
+                   scale=1.0, seed=None, clamp=4.0, maps=None):
+  """One new full ``kind`` coefficient vector, changed only inside ``zones``
+  (+ painted ``maps``).
 
   scale > 0: the zone moves toward a fresh N(0, scale) random draw.
   scale = 0: the zone moves toward NEUTRAL (a zone-local reset).
@@ -161,7 +221,7 @@ def zone_randomize(model, kind, zones, identity=None, expression=None,
   face staying plausible rather than as leakage.
   """
   rng = np.random.default_rng(seed)
-  s = _solver(model, kind, zones)
+  s = _solver(model, kind, zones, maps)
   K = s["K"]
 
   cur = np.zeros(K, np.float32)

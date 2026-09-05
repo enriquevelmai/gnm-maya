@@ -107,6 +107,7 @@ def main():
             sampler=sampler_obj,
             seed=req.get("seed", 0),
             arkit=req.get("arkit", False),
+            visemes=req.get("visemes", False),
         )
         print("BAKED %d" % len(meta["targets"]), flush=True)
       except Exception as e:
@@ -119,8 +120,20 @@ def main():
         vec = _zones.zone_randomize(
             model, req["kind"], req["zones"],
             identity=req.get("identity"), expression=req.get("expression"),
-            scale=req.get("scale", 1.0), seed=req.get("seed"))
+            scale=req.get("scale", 1.0), seed=req.get("seed"),
+            maps=req.get("maps"))
         print("COEFF " + json.dumps(vec), flush=True)
+      except Exception as e:
+        print("ERR %s" % e, flush=True)
+      continue
+
+    if cmd == "zone_weights":  # per-vertex mask preview for the viewport
+      try:
+        import _zones
+        w = _zones.zone_weights(model, req.get("zones", []),
+                                maps=req.get("maps"))
+        print("COEFF " + json.dumps([round(float(x), 4) for x in w]),
+              flush=True)
       except Exception as e:
         print("ERR %s" % e, flush=True)
       continue

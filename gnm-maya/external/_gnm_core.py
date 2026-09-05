@@ -179,6 +179,27 @@ ARKIT_ZONE_MASK = {
 }
 
 
+# ARKit shapes GNM has no semantic class for, derived from one that contains
+# the motion: (source semantic shape, zones that isolate the wanted part).
+ARKIT_DERIVED = {
+    "jawOpen": ("surprise", ("mouth", "jaw")),   # surprise = brows up + jaw drop
+}
+
+# Mouth-shape (viseme) targets for audio lip-sync, as weighted recipes over
+# the semantic expressions, masked to the mouth/jaw. Names follow Rhubarb
+# Lip Sync's shape set (A/X = closed rest, so no target): B slightly open,
+# C open, D wide open, E rounded, F puckered, G teeth on lip, H tongue up.
+VISEMES = {
+    "viseme_B": [("surprise", 0.35)],
+    "viseme_C": [("surprise", 0.70)],
+    "viseme_D": [("surprise", 1.00), ("stretch_face", 0.50)],
+    "viseme_E": [("funneler", 0.80), ("surprise", 0.30)],
+    "viseme_F": [("pucker", 1.00)],
+    "viseme_G": [("lips_roll_in", 0.60), ("surprise", 0.15)],
+    "viseme_H": [("surprise", 0.50), ("tongue_center", 0.70)],
+}
+
+
 def _side_masks(neutral, left_positive):
   """Smooth left/right vertex masks across the midline (x=0), ~8 mm blend."""
   import numpy as np
@@ -190,7 +211,7 @@ def _side_masks(neutral, left_positive):
 
 
 def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
-                    mode_scale=2.0, seed=0, arkit=False):
+                    mode_scale=2.0, seed=0, arkit=False, visemes=False):
   """Write everything Maya needs to bake a self-sufficient rig.
 
   Targets are evaluated at the CURRENT identity with zero pose, so blendshape
@@ -252,6 +273,28 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
       else:  # split one symmetric shape into ARKit Left/Right halves
         for out_name, mask in zip(arkit_names, (lmask, rmask)):
           write_target(out_name, neutral + mask[:, None] * delta)
+
+    def _semantic_vec(name):
+      return sampler.sample_expression(_semantic.EXPRESSION.index(name),
+                                       seed=seed + _semantic.EXPRESSION.index(name))
+
+    if arkit:  # derived shapes (e.g. jawOpen carved out of 'surprise')
+      import _zones
+      for out_name, (src, zones) in ARKIT_DERIVED.items():
+        verts = eval_vertices(model, identity=identity,
+                              expression=_semantic_vec(src))
+        zw = _zones.zone_weights(model, list(zones), shrink=0.7)
+        write_target(out_name, neutral + (verts - neutral) * zw[:, None])
+
+    if visemes:  # mouth shapes for audio lip-sync (scene/animate.py)
+      import _zones
+      zw = _zones.zone_weights(model, ["mouth", "jaw"], shrink=0.85)
+      for vname, recipe in VISEMES.items():
+        vec = np.zeros(model.expression_dim, np.float32)
+        for src, wgt in recipe:
+          vec += float(wgt) * np.asarray(_semantic_vec(src), np.float32)
+        verts = eval_vertices(model, identity=identity, expression=vec)
+        write_target(vname, neutral + (verts - neutral) * zw[:, None])
 
   # Optional: the first N raw basis modes OF EACH REGION as individual
   # targets (unit coefficient * mode_scale), named by their basis names.

@@ -55,6 +55,17 @@ def set_presets_dir(path):
   _set(_PRESETS_KEY, path)
 
 
+def zones_dir():
+  """Where user-painted zone maps (float32 per-vertex weights) are kept."""
+  d = _get("gnmZonesDir", os.path.expanduser("~/Documents/maya/gnm_zones"))
+  if not os.path.isdir(d):
+    try:
+      os.makedirs(d)
+    except OSError:
+      pass
+  return d
+
+
 def exports_dir():
   return _get(_EXPORTS_KEY, os.path.expanduser("~/Documents/maya/gnm_exports"))
 

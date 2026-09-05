@@ -125,18 +125,27 @@ class GnmWorker(object):
     return json.loads(resp[len("T2F "):])
 
   def zone_randomize(self, kind, zones, identity=None, expression=None,
-                     scale=1.0, seed=None):
+                     scale=1.0, seed=None, maps=None):
     """Zone-masked randomize (nose/mouth/jaw/...): returns a full coefficient
-    vector for ``kind`` whose effect is confined to ``zones``. scale=0 resets
-    the zones toward neutral."""
+    vector for ``kind`` whose effect is confined to ``zones`` and painted
+    ``maps`` (float32 [V] files). scale=0 resets the zones toward neutral."""
     req = {"cmd": "zone_randomize", "kind": str(kind),
            "zones": [str(z) for z in zones], "scale": float(scale)}
+    if maps:
+      req["maps"] = [str(p) for p in maps]
     if identity is not None:
       req["identity"] = [float(x) for x in identity]
     if expression is not None:
       req["expression"] = [float(x) for x in expression]
     if seed is not None:
       req["seed"] = int(seed)
+    return self._sample(req)
+
+  def zone_weights(self, zones, maps=None):
+    """Per-vertex [V] weights of the given zones/maps (for viewport preview)."""
+    req = {"cmd": "zone_weights", "zones": [str(z) for z in zones]}
+    if maps:
+      req["maps"] = [str(p) for p in maps]
     return self._sample(req)
 
   def render(self, out, identity=None, expression=None, size=128):
@@ -176,17 +185,18 @@ class GnmWorker(object):
     return self._sample(req)
 
   def bake(self, identity=None, num_modes=0, semantic=True, seed=0,
-           arkit=False):
+           arkit=False, visemes=False):
     """Export rig data (targets/weights/joints) into the session dir.
 
     ``arkit`` renames/splits the semantic targets to ARKit-52 blendshape
-    names (Live Link Face conventions). Returns the parsed rig.json metadata.
+    names (Live Link Face conventions); ``visemes`` adds the mouth-shape
+    targets used by audio lip-sync. Returns the parsed rig.json metadata.
     """
     if not self.alive():
       raise RuntimeError("GNM server has exited.")
     req = {"cmd": "bake", "num_modes": int(num_modes),
            "semantic": bool(semantic), "seed": int(seed),
-           "arkit": bool(arkit)}
+           "arkit": bool(arkit), "visemes": bool(visemes)}
     if identity is not None:
       req["identity"] = [float(x) for x in identity]
     self.proc.stdin.write(json.dumps(req) + "\n")

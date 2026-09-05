@@ -54,6 +54,41 @@ def get_or_create(component):
   return sg
 
 
+# --- component visibility ---------------------------------------------------
+
+COMPONENT_GROUPS = {   # display label -> mesh components it covers
+    "Skin": ("skin",),
+    "Eyes": ("left_eye", "right_eye"),
+    "Teeth": ("upper_teeth_and_gums", "lower_teeth_and_gums"),
+    "Tongue": ("tongue",),
+}
+
+
+def set_component_visible(label, visible):
+  """Show/hide an anatomical part of every GNM head by making its shared
+  shader fully transparent (the mesh is one object, so faces can't be
+  hidden individually). Viewport 2.0 honours shader transparency."""
+  for comp in COMPONENT_GROUPS.get(label, ()):
+    sh = "gnm_%s_mat" % comp
+    if not mc.objExists(sh):
+      continue
+    v = 0.0 if visible else 1.0
+    if mc.nodeType(sh) == "aiStandardSurface":
+      mc.setAttr(sh + ".opacity", 1 - v, 1 - v, 1 - v, type="double3")
+    else:
+      mc.setAttr(sh + ".transparency", v, v, v, type="double3")
+
+
+def component_visible(label):
+  for comp in COMPONENT_GROUPS.get(label, ()):
+    sh = "gnm_%s_mat" % comp
+    if mc.objExists(sh):
+      if mc.nodeType(sh) == "aiStandardSurface":
+        return mc.getAttr(sh + ".opacity")[0][0] > 0.5
+      return mc.getAttr(sh + ".transparency")[0][0] < 0.5
+  return True
+
+
 # --- texturing -------------------------------------------------------------
 
 _TEX_FILE = "gnm_texture_file"

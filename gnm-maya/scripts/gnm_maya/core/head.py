@@ -221,8 +221,9 @@ class GnmHead(object):
                 kind, start, end, scale, self.transform)
 
   def randomize_zones(self, kind, zones, scale=1.0, seed=None,
-                      symmetric=False, update=True):
-    """Zone-masked randomize (nose/mouth/jaw/brows/eyes) via the fit solver.
+                      symmetric=False, update=True, maps=None):
+    """Zone-masked randomize (nose/mouth/jaw/brows/eyes/ears/back_head, plus
+    user-painted ``maps``) via the fit solver.
 
     Unlike :meth:`randomize_range` (which masks whole basis GROUPS), this
     masks by GEOMETRY: the worker blends a random candidate into the zone's
@@ -233,7 +234,7 @@ class GnmHead(object):
     vec = self.worker.zone_randomize(kind, list(zones),
                                      identity=self.identity,
                                      expression=self.expression,
-                                     scale=scale, seed=seed)
+                                     scale=scale, seed=seed, maps=maps)
     if kind == "identity":
       self.identity = [float(x) for x in vec]
     else:

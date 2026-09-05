@@ -97,9 +97,35 @@ def run():
     print("[ok] feature-zone randomize + reset roundtrip (delta=%.4f)"
           % (zoned - base))
 
-    # thumbnail render op (drives the Variants contact sheet)
+    # painted zone maps: Maya colour set <-> float32 file <-> solver
     import os
     import tempfile
+    from gnm_maya.scene import zones as zn
+    from gnm_maya.core import settings as _settings
+    _settings_dir = _settings.zones_dir()
+    nv = head.topology.num_vertices
+    paint = [1.0 if i % 7 == 0 else 0.0 for i in range(nv)]  # fake strokes
+    zn.write_colorset(name, zn.PREFIX + "smoketest", paint)
+    back = zn.read_colorset(name, zn.PREFIX + "smoketest")
+    assert sum(abs(a - b) for a, b in zip(paint, back)) < 1e-3, \
+        "colour set roundtrip lost the painted weights"
+    zn.save_paint(head, "smoketest")
+    assert os.path.isfile(zn.map_path("smoketest")), "map file not written"
+    head.reset_all()
+    head.randomize_zones("identity", [], scale=1.0, seed=2,
+                         maps=[zn.map_path("smoketest")])
+    assert any(abs(x) > 1e-6 for x in head.identity), \
+        "painted-map randomize produced nothing"
+    w = worker.get_worker().zone_weights(["ears"],
+                                         maps=[zn.map_path("smoketest")])
+    assert len(w) == nv and max(w) > 0.99, "zone_weights preview op failed"
+    zn.preview(head, w)
+    zn.clear_preview(head)
+    zn.delete_map("smoketest")
+    head.reset_all()
+    print("[ok] painted zone map: colour set -> file -> solver -> preview")
+
+    # thumbnail render op (drives the Variants contact sheet)
     png = os.path.join(tempfile.gettempdir(), "gnm_smoke_thumb.png")
     from gnm_maya.core import worker as _worker_mod
     _worker_mod.get_worker().render(png, identity=head.identity, size=96)

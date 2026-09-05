@@ -5,6 +5,7 @@ venv/
 runtime/
 external/gnm_repo/
 external/GNM_version.json
+tools/            # on-demand binaries (Rhubarb Lip Sync)
 
 # Python bytecode
 __pycache__/

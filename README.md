@@ -2,7 +2,8 @@
 
 Generate [Google GNM](https://github.com/google/GNM) parametric human head
 meshes inside Autodesk Maya — semantic sampling, blending, text descriptions,
-photo fitting, rig baking, crowds, and more.
+photo fitting, region/zone/painted-mask randomization with a variants sheet,
+rig baking (ARKit-52 + visemes), audio lip-sync, crowds, and more.
 
 - 📖 Full documentation: [gnm-maya/README.md](gnm-maya/README.md)
 - 🖼 Shape gallery (what every slider does, browsable on GitHub):

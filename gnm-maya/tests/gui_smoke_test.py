@@ -50,6 +50,7 @@ _bootstrap()
 from maya import cmds as mc
 import gnm_maya
 from gnm_maya.ui import panel as ui
+from gnm_maya.ui import widgets as widgets_mod
 
 
 _results = []
@@ -84,6 +85,14 @@ def run():
         not panel.bake_btn.icon().isNull()
         and not panel.reset_btn.icon().isNull())
   check("window icon set", not panel.windowIcon().isNull())
+  check("tabs are Create/Identity/Expression/Pose/Animate",
+        [panel.tabs.tabText(i) for i in range(panel.tabs.count())]
+        == ["Create", "Identity", "Expression", "Pose", "Animate"])
+  check("Maya-style collapsible frames in use",
+        len(panel.findChildren(widgets_mod.CollapsibleFrame)) >= 6)
+  check("Display menu lists the anatomy parts",
+        [a.text() for a in panel.display_btn.menu().actions()]
+        == ["Skin", "Eyes", "Teeth", "Tongue"])
 
   # Drive an identity slider through its widget (fires the live callback).
   panel._id_sliders[0].s.setValue(200)  # 200 / 100 = 2.0
@@ -190,7 +199,29 @@ def run():
     check("feature-zone randomize drives coefficients",
           any(abs(x) > 1e-6 for x in panel.head.identity))
     panel._reset_areas()
+    # Mask preview spotlights the zone as vertex colours, then clears.
+    panel.mask_show_btn.setChecked(True)
+    from gnm_maya.scene import zones as zn
+    check("mask preview writes a colour set",
+          zn.has_colorset(panel.head.transform, zn.PREVIEW_SET))
+    panel.mask_show_btn.setChecked(False)
+    check("mask preview clears",
+          not zn.has_colorset(panel.head.transform, zn.PREVIEW_SET))
     panel._zone_checks["nose"].setChecked(False)
+
+    # Painted maps: create one programmatically, it shows up as a checkbox.
+    zn.save_map("_guitest_map", [1.0 if i % 5 == 0 else 0.0
+                                 for i in range(panel.head.topology.num_vertices)])
+    panel._rebuild_painted_checks()
+    check("painted map appears as a checkbox", "_guitest_map" in panel._map_checks)
+    panel._map_checks["_guitest_map"].setChecked(True)
+    panel.head.reset_all()
+    panel._randomize_areas("identity")
+    check("painted-map randomize drives coefficients",
+          any(abs(x) > 1e-6 for x in panel.head.identity))
+    panel._map_checks["_guitest_map"].setChecked(False)
+    zn.delete_map("_guitest_map")
+    panel._rebuild_painted_checks()
 
     # History ladder: back restores the pre-randomize look, forward re-applies.
     panel.head.reset_all()
