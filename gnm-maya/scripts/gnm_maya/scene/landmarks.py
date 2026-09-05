@@ -163,6 +163,7 @@ def fit_head_to_locators(head, lam=1.0):
   vec = head.worker.fit_landmarks3d(targets, expression=head.expression,
                                     prior=head.identity,
                                     lam=lam)
+  head.clear_sculpt()  # a landmark fit redefines the whole face
   head.identity = [float(x) for x in vec]
   head._update()
   update_landmark_locators(head)  # show what the fit achieved

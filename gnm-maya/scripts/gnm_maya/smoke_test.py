@@ -168,6 +168,11 @@ def run():
     twin = GnmHead.adopt(name)
     assert twin.sculpt is not None and len(twin.sculpt) == 3 * nv, (
         "sculpt layer not restored on adopt")
+    head.randomize_identity(scale=0.5, seed=3)  # whole-head op
+    assert head.sculpt is None, "unmasked randomize should drop the sculpt layer"
+    head.randomize_zones("identity", [], scale=1.0, seed=4,
+                         maps=[zn.map_path("smoketest")])
+    assert head.sculpt is not None
     head.reset_all()
     assert head.sculpt is None, "reset_all should drop the sculpt layer"
     w = worker.get_worker().zone_weights(["ears"],

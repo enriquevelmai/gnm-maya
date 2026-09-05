@@ -328,7 +328,9 @@ the difference between that and the exact masked target is stored on the head
 as a per-vertex **sculpt layer** (bind-pose residual, applied by the worker
 before pose skinning, persisted on the mesh, carried into presets, history,
 variants and baked rigs). Coefficients stay editable with the sliders;
-unmasked vertices stay bit-for-bit where they were. Reset drops the layer.
+unmasked vertices stay bit-for-bit where they were. Any whole-head operation
+(Sample, an unmasked Randomize, Describe, Blend, a photo/landmark fit, Reset)
+drops the layer — masked edits live on top of a face, not across faces.
 
 ## Community & inspiration
 

@@ -229,12 +229,14 @@ class GnmHead(object):
   # --- bulk ops ------------------------------------------------------------
 
   def randomize_identity(self, scale=1.0, seed=None):
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     rng = random.Random(seed)
     self.identity = [rng.gauss(0.0, 1.0) * scale for _ in self.identity]
     self._update()
     logger.info("Randomized identity (scale=%.2f) on '%s'", scale, self.transform)
 
   def randomize_expression(self, scale=1.0, seed=None, symmetric=False):
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     rng = random.Random(seed)
     vals = [rng.gauss(0.0, 1.0) * scale for _ in self.expression]
     if symmetric:
@@ -340,6 +342,7 @@ class GnmHead(object):
 
   def semantic_identity(self, gender, ethnicity, seed=None):
     """Set identity from the semantic sampler (gender + ethnicity classes)."""
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     vec = self.worker.sample_identity(gender, ethnicity, seed)
     self.identity = [float(x) for x in vec]
     self._update()
@@ -348,6 +351,7 @@ class GnmHead(object):
 
   def semantic_expression(self, class_index, seed=None):
     """Set expression from the semantic sampler (named expression class)."""
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     vec = self.worker.sample_expression(class_index, seed)
     self.expression = [float(x) for x in vec]
     self._update()
@@ -360,6 +364,7 @@ class GnmHead(object):
     Uses a local lexicon (always available) or a local Ollama LLM if one is
     running. Returns the parsed interpretation dict for UI feedback.
     """
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     out = self.worker.text2face(text, seed=seed, prefer_ollama=prefer_ollama)
     if out.get("expression"):
       self.expression = [float(x) for x in out["expression"]]
@@ -373,6 +378,7 @@ class GnmHead(object):
 
   def fit_photo(self, image_path, lam=2.0):
     """Fit this head's identity to a face photo (MediaPipe + least squares)."""
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     vec = self.worker.fit_photo(image_path=image_path, lam=lam)
     self.identity = [float(x) for x in vec]
     self._update()
@@ -381,12 +387,14 @@ class GnmHead(object):
 
   def blend_expression(self, weights, seed=None):
     """Set expression from a weighted blend of expression classes."""
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     vec = self.worker.blend_expression(weights, seed)
     self.expression = [float(x) for x in vec]
     self._update()
 
   def blend_identity(self, gender_weights, ethnicity_weights, seed=None):
     """Set identity from a weighted blend of gender/ethnicity classes."""
+    self.clear_sculpt()  # whole-head op: masked sculpt layer no longer applies
     vec = self.worker.blend_identity(gender_weights, ethnicity_weights, seed)
     self.identity = [float(x) for x in vec]
     self._update()
