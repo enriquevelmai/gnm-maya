@@ -131,9 +131,10 @@ Per-platform notes:
   random change is multiplied by your map, so **only what you painted moves**
   (softly at the edge, since the fit stays inside the model's shape space).
   **Show** spotlights any combination on the head as a UV texture on a
-  temporary material (Viewport 2.0 shows this reliably; vertex colours don't
-  display through Arnold shaders). A vertex-colour *Brush* mode is kept under
-  the same menu for those who prefer painting strokes.
+  temporary material. A vertex-colour *Brush* mode is kept under the same
+  menu for those who prefer painting strokes — heads are shaded with Maya's
+  native `standardSurface` (Arnold renders it natively) precisely so that
+  Maya's vertex-colour tools work on them; `aiStandardSurface` blocks them.
 - **Bake Rig** (Animate tab) — converts the current head into a
   **self-sufficient rigged asset**: a blendShape with the 20 named expressions
   and/or the **first N basis modes of each region** as keyframable sliders,

@@ -1,8 +1,10 @@
 """Per-component materials for the GNM head.
 
 Gives each anatomical part its own shader (skin/eyes/teeth/tongue) so the mesh
-reads correctly instead of flat default gray. Prefers aiStandardSurface when
-Arnold is loaded, else falls back to lambert (always available).
+reads correctly instead of flat default gray. Uses Maya's native
+**standardSurface** (2020+; Arnold renders it natively) — NOT aiStandardSurface:
+Maya's vertex-colour tools neither paint nor display through Arnold's shader,
+which broke the painted zone maps. Falls back to lambert on older Mayas.
 """
 
 from __future__ import annotations
@@ -25,30 +27,48 @@ _PALETTE = {
 _DEFAULT = ((0.72, 0.74, 0.78), False)
 
 
-def _arnold_available():
+def _standard_surface_available():
   try:
-    return mc.pluginInfo("mtoa", query=True, loaded=True)
+    return "standardSurface" in (mc.allNodeTypes() or [])
   except Exception:
     return False
 
 
-def get_or_create(component):
-  """Return a shading group name for ``component`` (created once, reused)."""
-  color, glossy = _PALETTE.get(component, _DEFAULT)
-  shader_name = "gnm_%s_mat" % component
-  sg_name = shader_name + "SG"
-  if mc.objExists(sg_name):
-    return sg_name
-
-  if _arnold_available():
-    shader = mc.shadingNode("aiStandardSurface", asShader=True, name=shader_name)
+def _make_shader(shader_name, color, glossy):
+  if _standard_surface_available():
+    shader = mc.shadingNode("standardSurface", asShader=True, name=shader_name)
+    mc.setAttr(shader + ".base", 1.0)
     mc.setAttr(shader + ".baseColor", *color, type="double3")
-    mc.setAttr(shader + ".specular", 0.4 if glossy else 0.1)
+    mc.setAttr(shader + ".specular", 0.6 if glossy else 0.2)
     mc.setAttr(shader + ".specularRoughness", 0.15 if glossy else 0.55)
   else:
     shader = mc.shadingNode("lambert", asShader=True, name=shader_name)
     mc.setAttr(shader + ".color", *color, type="double3")
+  return shader
 
+
+def get_or_create(component):
+  """Return a shading group name for ``component`` (created once, reused).
+
+  A pre-existing aiStandardSurface (from older gnm-maya versions) is swapped
+  for a standardSurface in place so vertex painting works in old scenes."""
+  color, glossy = _PALETTE.get(component, _DEFAULT)
+  shader_name = "gnm_%s_mat" % component
+  sg_name = shader_name + "SG"
+  if mc.objExists(sg_name):
+    old = mc.listConnections(sg_name + ".surfaceShader") or []
+    if old and mc.nodeType(old[0]) == "aiStandardSurface":
+      mc.rename(old[0], shader_name + "_ai_old")
+      shader = _make_shader(shader_name, color, glossy)
+      mc.connectAttr(shader + ".outColor", sg_name + ".surfaceShader",
+                     force=True)
+      try:
+        mc.delete(shader_name + "_ai_old")
+      except Exception:
+        pass
+    return sg_name
+
+  shader = _make_shader(shader_name, color, glossy)
   sg = mc.sets(renderable=True, noSurfaceShader=True, empty=True, name=sg_name)
   mc.connectAttr(shader + ".outColor", sg + ".surfaceShader", force=True)
   return sg
@@ -73,7 +93,7 @@ def set_component_visible(label, visible):
     if not mc.objExists(sh):
       continue
     v = 0.0 if visible else 1.0
-    if mc.nodeType(sh) == "aiStandardSurface":
+    if mc.nodeType(sh) in ("standardSurface", "aiStandardSurface"):
       mc.setAttr(sh + ".opacity", 1 - v, 1 - v, 1 - v, type="double3")
     else:
       mc.setAttr(sh + ".transparency", v, v, v, type="double3")
@@ -83,7 +103,7 @@ def component_visible(label):
   for comp in COMPONENT_GROUPS.get(label, ()):
     sh = "gnm_%s_mat" % comp
     if mc.objExists(sh):
-      if mc.nodeType(sh) == "aiStandardSurface":
+      if mc.nodeType(sh) in ("standardSurface", "aiStandardSurface"):
         return mc.getAttr(sh + ".opacity")[0][0] > 0.5
       return mc.getAttr(sh + ".transparency")[0][0] < 0.5
   return True
@@ -117,7 +137,9 @@ def bundled_texture_path():
 
 
 def _color_attr(shader):
-  return "baseColor" if mc.nodeType(shader) == "aiStandardSurface" else "color"
+  return ("baseColor" if mc.nodeType(shader) in ("standardSurface",
+                                                  "aiStandardSurface")
+          else "color")
 
 
 def _shaders_of(transform):
