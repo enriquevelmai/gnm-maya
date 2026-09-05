@@ -115,6 +115,11 @@ def has_colorset(transform, cset):
 def show_colors(transform, on):
   shape = _shape(transform)
   mc.setAttr(shape + ".displayColors", 1 if on else 0)
+  if on:
+    try:  # vertex colours replace the shading colour (not just ambient)
+      mc.setAttr(shape + ".displayColorChannel", "Diffuse", type="string")
+    except Exception:
+      pass
   try:
     mc.polyOptions(transform, colorShadedDisplay=bool(on))
   except Exception:
@@ -123,22 +128,55 @@ def show_colors(transform, on):
 
 # --- painting workflow ----------------------------------------------------------
 
-def start_paint(head, name):
+PAINT_CTX = "artAttrColorPerVertexContext"   # Maya's Paint Vertex Color ctx
+
+
+def _arm_brush(white=True):
+  """Point the Paint Vertex Color tool at a white (or black) Replace brush.
+
+  The tool remembers whatever colour was used last (often black), and
+  painting black onto a black map changes nothing — so always set it."""
+  rgb = (1.0, 1.0, 1.0) if white else (0.0, 0.0, 0.0)
+  for ctx in (PAINT_CTX, mc.currentCtx()):
+    try:
+      if not mc.artAttrPaintVertexCtx(ctx, query=True, exists=True):
+        continue
+      mc.artAttrPaintVertexCtx(ctx, edit=True, colorRGBValue=rgb,
+                               value=1.0 if white else 0.0,
+                               selectedattroper="absolute",  # Replace
+                               paintVertexFace=False)        # per vertex
+      break
+    except Exception:
+      continue
+  try:  # refresh the Tool Settings window so the swatch reflects it
+    mel.eval("artAttrColorPerVertexValues %s;" % PAINT_CTX)
+  except Exception:
+    pass
+
+
+def start_paint(head, name, white=True):
   """Put the map's colour set on the head (from file if it exists, else black)
-  and open Maya's Paint Vertex Color tool with a white brush."""
+  and open Maya's Paint Vertex Color tool with a white Replace brush."""
   cset = PREFIX + name
   n = _fn(head.transform).numVertices
   weights = load_map(name) if os.path.isfile(map_path(name)) else [0.0] * n
   write_colorset(head.transform, cset, weights)
+  # The paint tool reads the CURRENT colour set through the DG, so set it
+  # with the command too (the API call alone isn't always picked up).
+  try:
+    mc.polyColorSet(head.transform, currentColorSet=True, colorSet=cset)
+  except Exception:
+    pass
   show_colors(head.transform, True)
   mc.select(head.transform, replace=True)
   mel.eval("PaintVertexColorTool;")
-  try:  # white brush = weight 1 (the artist can lower it in the tool)
-    ctx = mc.currentCtx()
-    mc.artAttrPaintVertexCtx(ctx, edit=True, colorRGBValue=(1.0, 1.0, 1.0))
+  _arm_brush(white)
+  try:  # show the Tool Settings so the white swatch / Replace mode are visible
+    mc.toolPropertyWindow()
   except Exception:
     pass
-  logger.info("Painting zone map '%s' on %s", name, head.transform)
+  logger.info("Painting zone map '%s' on %s (colour set %s)", name,
+              head.transform, cset)
 
 
 def save_paint(head, name):
