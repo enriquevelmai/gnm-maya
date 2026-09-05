@@ -183,6 +183,35 @@ def _sync_top_level(src_root, dst_root):
     shutil.copy2(src_path, os.path.join(dst_root, entry))
 
 
+def _local_gallery_to_keep():
+  """If this install has a FULL-quality, locally rendered shape gallery, move
+  it aside so the wholesale docs/ replace (which ships only the compact
+  96 px set) doesn't throw it away — otherwise every tool update would ask
+  for the ~5 min re-render again. Returns the aside path, or None."""
+  import json
+  gallery = os.path.join(config.MODULE_ROOT, "docs", "shapes")
+  try:
+    with open(os.path.join(gallery, "manifest.json")) as f:
+      m = json.load(f)
+  except Exception:
+    return None
+  from gnm_maya.services import bootstrap
+  if m.get("size", 0) < bootstrap.GALLERY_FULL_SIZE or m.get("stale"):
+    return None
+  # Park it OUTSIDE docs/ — the wholesale replace deletes docs/ entirely.
+  aside = os.path.join(config.MODULE_ROOT, "_shapes_keep")
+  shutil.rmtree(aside, ignore_errors=True)
+  shutil.move(gallery, aside)
+  return aside
+
+
+def _restore_gallery(aside):
+  gallery = os.path.join(config.MODULE_ROOT, "docs", "shapes")
+  shutil.rmtree(gallery, ignore_errors=True)
+  shutil.move(aside, gallery)
+  logger.info("Kept the locally rendered full-size shape gallery.")
+
+
 def download_and_install(timeout=180):
   """Download the channel's repo zip and sync gnm-maya/ onto this install."""
   if not os.access(config.MODULE_ROOT, os.W_OK):
@@ -208,9 +237,12 @@ def download_and_install(timeout=180):
     if not os.path.isdir(os.path.join(module_src, "scripts", "gnm_maya")):
       raise RuntimeError("Downloaded archive is not a gnm-maya repo.")
 
+    keep_gallery = _local_gallery_to_keep()
     for name in _REPLACE_DIRS:
       _replace_dir(os.path.join(module_src, name),
                   os.path.join(config.MODULE_ROOT, name))
+    if keep_gallery:
+      _restore_gallery(keep_gallery)
     _sync_external_py(os.path.join(module_src, "external"), config.EXTERNAL_DIR)
     _sync_top_level(module_src, config.MODULE_ROOT)
   finally:

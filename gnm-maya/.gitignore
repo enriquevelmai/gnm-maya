@@ -57,3 +57,6 @@ runtime/Lib/site-packages/packaging/
 runtime/Lib/site-packages/packaging-*.dist-info/
 runtime/Lib/site-packages/share/
 runtime/Lib/site-packages/bin/
+
+# gallery parked aside during a tool update (removed when it completes)
+_shapes_keep/

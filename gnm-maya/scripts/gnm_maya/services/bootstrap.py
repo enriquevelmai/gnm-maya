@@ -248,9 +248,30 @@ def ensure_all(status=lambda msg: None):
   return done
 
 
+_gallery_deferred = {"later": False}  # "Later" pressed this session
+
+
 def ensure_all_with_dialog():
-  """Maya-facing: confirm + bootstrap behind a progress dialog."""
+  """Maya-facing: confirm + bootstrap behind a progress dialog.
+
+  The runtime and the model are required; the full-quality shape gallery is
+  optional (the panel works with the compact images or none), so when only
+  the gallery is missing the user can press Later and keep working."""
   from maya import cmds as mc
+  if (runtime_available() and gnm_repo_available()
+      and not gallery_available()):
+    if _gallery_deferred["later"]:
+      return True
+    ans = mc.confirmDialog(
+        title="GNM shape images", icon="question",
+        message="The full-quality shape images (slider thumbnails) are not "
+                "rendered on this install yet.\nRendering takes ~5 min, "
+                "once. Render now, or later from GNM > Shape Gallery?",
+        button=["Render now", "Later"], defaultButton="Later",
+        cancelButton="Later", dismissString="Later")
+    if ans != "Render now":
+      _gallery_deferred["later"] = True
+      return True
   missing = []
   if not runtime_available():
     missing.append("portable Python runtime (~70 MB download)" if IS_WINDOWS

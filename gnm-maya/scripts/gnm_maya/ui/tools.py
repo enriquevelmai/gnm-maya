@@ -225,15 +225,34 @@ def export_selected_fbx():
   return path
 
 
+@_report_errors("Shape Gallery")
 def open_shape_gallery():
-  """Open the pre-rendered min/max shape gallery in the browser."""
+  """Open the min/max shape gallery; offer the full-quality local render
+  first if this install only has the compact set (or none)."""
   import webbrowser
+  from gnm_maya.services import bootstrap
   from gnm_maya.ui import panel as ui
+  if bootstrap.runtime_available() and bootstrap.gnm_repo_available() \
+     and not bootstrap.gallery_available():
+    ans = mc.confirmDialog(
+        title="Shape Gallery", icon="question",
+        message="This install has only the compact shape images (or none).\n"
+                "Render the full-quality set now? (~5 min, once)",
+        button=["Render now", "Open as is", "Cancel"],
+        defaultButton="Render now", cancelButton="Cancel",
+        dismissString="Cancel")
+    if ans == "Cancel":
+      return None
+    if ans == "Render now":
+      from gnm_maya.ui.progress import MayaProgress
+      with MayaProgress("Rendering shape images", maximum=1) as prog:
+        bootstrap.ensure_gallery(lambda m: prog.set(1, m))
+      bootstrap._gallery_deferred["later"] = False
   page = ui.gallery_page_path()
   if page:
     webbrowser.open("file:///" + page.replace("\\", "/"))
     return page
-  runtime_py = ("runtime\\python.exe" if os.name == "nt"
+  runtime_py = ("runtime\python.exe" if os.name == "nt"
                 else "runtime/bin/python3")
   mc.confirmDialog(
       title="Shape Gallery", icon="warning",
