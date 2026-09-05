@@ -126,6 +126,33 @@ def show_colors(transform, on):
     pass
 
 
+# --- display material -----------------------------------------------------------
+
+PAINT_SG = "gnm_paintDisplaySG"
+
+
+def _paint_display(head, on):
+  """While painting/previewing, shade the WHOLE head with a plain white
+  lambert so the vertex colours are what you see.
+
+  Viewport 2.0 only displays vertex colours through lambert/blinn/standard
+  surface shaders — Arnold's aiStandardSurface (used for the head whenever
+  mtoa is loaded) ignores them, which made painting look like a no-op. The
+  per-part materials are restored afterwards from the topology."""
+  from gnm_maya.scene import build as _build
+  if on:
+    if not mc.objExists(PAINT_SG):
+      sh = mc.shadingNode("lambert", asShader=True, name="gnm_paintDisplay_mat")
+      mc.setAttr(sh + ".color", 1.0, 1.0, 1.0, type="double3")
+      mc.setAttr(sh + ".diffuse", 1.0)
+      sg = mc.sets(renderable=True, noSurfaceShader=True, empty=True,
+                   name=PAINT_SG)
+      mc.connectAttr(sh + ".outColor", sg + ".surfaceShader", force=True)
+    mc.sets(head.transform, edit=True, forceElement=PAINT_SG)
+  else:
+    _build._assign_materials(head.transform, head.topology)
+
+
 # --- painting workflow ----------------------------------------------------------
 
 PAINT_CTX = "artAttrColorPerVertexContext"   # Maya's Paint Vertex Color ctx
@@ -168,6 +195,7 @@ def start_paint(head, name, white=True):
   except Exception:
     pass
   show_colors(head.transform, True)
+  _paint_display(head, True)
   mc.select(head.transform, replace=True)
   mel.eval("PaintVertexColorTool;")
   _arm_brush(white)
@@ -207,17 +235,24 @@ def stop_paint(head):
   except Exception:
     pass
   show_colors(head.transform, False)
+  _paint_display(head, False)
 
 
 # --- preview ("spotlight") -----------------------------------------------------
 
 def preview(head, weights):
   write_colorset(head.transform, PREVIEW_SET, weights)
+  try:
+    mc.polyColorSet(head.transform, currentColorSet=True, colorSet=PREVIEW_SET)
+  except Exception:
+    pass
   show_colors(head.transform, True)
+  _paint_display(head, True)
 
 
 def clear_preview(head):
   show_colors(head.transform, False)
+  _paint_display(head, False)
   try:
     fn = _fn(head.transform)
     if PREVIEW_SET in fn.getColorSetNames():

@@ -120,7 +120,9 @@ def run():
                                          maps=[zn.map_path("smoketest")])
     assert len(w) == nv and max(w) > 0.99, "zone_weights preview op failed"
     zn.preview(head, w)
+    assert (mc.sets(zn.PAINT_SG, query=True) or []),         "preview did not swap to the vertex-colour display material"
     zn.clear_preview(head)
+    assert (mc.sets("gnm_skin_matSG", query=True) or []),         "per-part materials not restored after preview"
     zn.delete_map("smoketest")
     head.reset_all()
     print("[ok] painted zone map: colour set -> file -> solver -> preview")
