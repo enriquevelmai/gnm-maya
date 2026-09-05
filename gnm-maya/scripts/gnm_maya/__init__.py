@@ -18,7 +18,7 @@ from gnm_maya.core.head import generate_head, generate_template
 
 __all__ = ["generate_head", "generate_template", "show_ui", "show_licenses",
            "add_shelf_button", "check_updates", "check_tool_updates",
-           "run_gui_test", "logger"]
+           "run_gui_test", "reload_package", "logger"]
 
 __version__ = "1.4.0"
 
@@ -38,8 +38,46 @@ def _configure_logger():
 logger = _configure_logger()
 
 
+def _disk_version():
+  """The __version__ written in this package's __init__.py ON DISK (may be
+  newer than the imported one right after a tool update)."""
+  import os
+  import re
+  try:
+    with open(os.path.join(os.path.dirname(__file__), "__init__.py")) as f:
+      m = re.search(r'__version__\s*=\s*"([^"]+)"', f.read())
+    return m.group(1) if m else __version__
+  except Exception:
+    return __version__
+
+
+def reload_package():
+  """Drop every gnm_maya submodule (and userSetup) from sys.modules so the
+  next import loads the code currently on disk — used right after a tool
+  update instead of forcing a Maya restart. Open panels keep working on the
+  old code; re-open them to get the new one."""
+  import sys
+  for name in list(sys.modules):
+    if name == "gnm_maya" or name.startswith("gnm_maya.") or name == "userSetup":
+      del sys.modules[name]
+  try:
+    import userSetup
+    userSetup.build_menu()
+  except Exception:
+    pass
+
+
 def show_ui():
-  """Lazy import so importing the package never requires Qt."""
+  """Lazy import so importing the package never requires Qt.
+
+  Self-heals after an update: if the code on disk is newer than what this
+  session imported, the package is reloaded first (no restart needed)."""
+  if _disk_version() != __version__:
+    logger.info("gnm-maya %s on disk, %s loaded — reloading package",
+                _disk_version(), __version__)
+    reload_package()
+    import gnm_maya as fresh
+    return fresh.show_ui()
   from gnm_maya.ui import panel as ui
   return ui.show()
 

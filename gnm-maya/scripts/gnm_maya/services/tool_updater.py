@@ -20,9 +20,10 @@ downloaded by their own bootstrap/updater flows.
 
 Unlike the GNM model (which lives in a subprocess and reloads automatically),
 this tool's own code runs directly in Maya's Python process and is cached in
-``sys.modules`` once imported — updating the files on disk does NOT change
-already-running code. **Restarting Maya is required** for a tool update to
-take effect; the post-update dialog makes this the recommended action.
+``sys.modules`` once imported — so after syncing the files the updater calls
+``gnm_maya.reload_package()`` (drops the imported package; the next menu
+action / panel open loads the new code). ``show_ui()`` also self-heals if it
+finds a newer version on disk than in memory. A Maya restart is optional.
 """
 
 from __future__ import annotations
@@ -229,6 +230,15 @@ def download_and_install(timeout=180):
 
   logger.info("Updated gnm-maya tool to %s (%s)", short(latest["version"]),
               latest["date"])
+  # Make the new code live in THIS session: drop the imported package so the
+  # next show_ui()/menu action loads the files just written. Open panels keep
+  # running the old code until re-opened; a restart is no longer required.
+  try:
+    import gnm_maya
+    gnm_maya.reload_package()
+  except Exception:
+    logger.warning("package reload after update failed; restart Maya",
+                   exc_info=True)
   return latest
 
 
@@ -315,23 +325,20 @@ def show_update_dialog(parent=None):
 
 
 def _post_update_dialog(latest):
-  """Shown after a successful download: RESTART is the recommended action.
-
-  Unlike the GNM model (an external subprocess that reloads on next use),
-  this tool's own code is already imported into Maya's Python process, so a
-  restart is required — not just recommended — for the update to apply.
-  """
+  """Shown after a successful download. The package was already reloaded by
+  download_and_install(), so continuing is the default; a restart stays
+  available for anyone who prefers a completely clean session."""
   from maya import cmds as mc
   from gnm_maya.services import updater  # reuse restart_maya
 
   msg = (
       "gnm-maya updated to %s (%s).\n\n"
-      "This tool's code is already loaded in this Maya session, so the "
-      "update will NOT take effect until you restart Maya.\n\n"
-      "Restart now?" % (short(latest["version"]), latest["date"]))
+      "The new code has been reloaded — close and re-open the GNM panel to "
+      "use it. Restarting Maya is optional."
+      % (short(latest["version"]), latest["date"]))
   ans = mc.confirmDialog(
-      title="gnm-maya updated", message=msg,
-      button=["Restart Maya", "Later"],
-      defaultButton="Restart Maya", cancelButton="Later", dismissString="Later")
+      title="gnm-maya updated", message=msg, icon="information",
+      button=["Continue", "Restart Maya"], defaultButton="Continue",
+      cancelButton="Continue", dismissString="Continue")
   if ans == "Restart Maya":
     updater.restart_maya()
