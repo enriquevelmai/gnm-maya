@@ -1,7 +1,7 @@
 """Headless validation under mayapy of the quad/material/expression pipeline.
 
     mayapy -c "import sys; sys.path.insert(0, r'<module>/scripts'); \
-               from gnm_maya import smoke_test; smoke_test.run()"
+               from gnm_maya import smoke_test; smoke_test.run_headless()"
 """
 
 from __future__ import annotations
@@ -23,6 +23,22 @@ def _sum_points(name):
   pts = fn.getPoints()
   # Sum all vertices so localized deformations (e.g. one eye region) register.
   return sum(p.x + p.y + p.z for p in pts)
+
+
+def run_headless():
+  """Entry point for CI: create the GUI QApplication BEFORE Maya standalone
+  initializes (the other order aborts), then run the full test."""
+  import sys as _sys
+  try:
+    from PySide6 import QtWidgets
+  except ImportError:
+    from PySide2 import QtWidgets
+  QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+  try:
+    _sys.stdout.reconfigure(line_buffering=True)
+  except Exception:
+    pass
+  return run()
 
 
 def run():
@@ -159,6 +175,32 @@ def run():
     assert "wink_left" not in names, "wink_left should be renamed for ARKit"
     print("[ok] ARKit bake: %d targets incl. L/R splits" % len(names))
 
+    # Build the real panel headlessly (mayapy ships PySide): catches missing
+    # slots / broken layouts that only show up when the window is created.
+    try:
+      try:
+        from PySide6 import QtWidgets
+      except ImportError:
+        from PySide2 import QtWidgets
+      app = QtWidgets.QApplication.instance()
+      # Creating a QApplication AFTER maya.standalone.initialize aborts the
+      # process, so the runner must create it first (see run_headless below);
+      # a bare QCoreApplication can't host widgets either.
+      if not isinstance(app, QtWidgets.QApplication):
+        raise ImportError("no GUI QApplication")
+      from gnm_maya.ui import panel as ui
+      p = ui.GnmPanel(parent=None, adopt_transform=name)
+      assert p.tabs.count() == 5, "panel tabs: %d" % p.tabs.count()
+      p._set_all_areas(False)
+      p._reset_areas()            # no-op path; must exist and not raise
+      p._randomize_areas("identity")  # nothing checked -> full randomize
+      assert any(abs(x) > 1e-6 for x in p.head.identity),           "panel randomize no-op"
+      p._reset_all()
+      p.close(); p.deleteLater()
+      print("[ok] GnmPanel builds headlessly (5 tabs, area actions wired)")
+    except ImportError:
+      print("[skip] Qt not available: panel construction not exercised")
+
     worker.shutdown_worker()
     print("SMOKE TEST PASSED")
   finally:
@@ -172,7 +214,7 @@ def run():
 
 if __name__ == "__main__":
   try:
-    run()
+    run_headless()
   except Exception as e:
     sys.stderr.write("SMOKE TEST FAILED: %s\n" % e)
     sys.exit(1)

@@ -942,6 +942,75 @@ class GnmPanel(QtWidgets.QWidget):
     except Exception as e:
       self._show_error("Mask preview failed", e)
 
+  def _randomize_areas(self, kind):
+    """Randomize only the checked regions/zones' ``kind`` coefficients."""
+    if not self.head:
+      return
+    labels = self._checked_areas()
+    zones = self._checked_zones()
+    maps = self._checked_maps()
+    ranges = [(label, self._area_ranges[label][kind]) for label in labels
+              if kind in self._area_ranges[label]]
+    if not labels and not zones and not maps:
+      # Nothing checked = the whole head (same as the tab's Randomize).
+      self._randomize_kind(kind)
+      return
+    if not ranges and not zones and not maps:
+      self.status.setText("Checked areas have no %s modes." % kind)
+      return
+    try:
+      for _label, (start, end) in ranges:
+        self.head.randomize_range(kind, start, end, scale=self._scale_value,
+                                  seed=self._rand_seed(),
+                                  symmetric=self._symmetry, update=False)
+      if zones or maps:
+        self.head.randomize_zones(kind, zones, scale=self._scale_value,
+                                  seed=self._rand_seed(),
+                                  symmetric=self._symmetry, update=False,
+                                  maps=maps)
+      self.head.refresh()
+      self._sync_sliders_from_head()
+      mc.select(self.head.transform, replace=True)
+      what = ([l for l, _r in ranges] + zones
+              + [os.path.basename(m)[:-4] for m in maps])
+      self.status.setText("Randomized %s: %s (scale=%.2f)."
+                          % (kind, ", ".join(what), self._scale_value))
+      self._push_history()
+    except Exception as e:
+      self._show_error("Area randomize failed", e)
+
+  def _reset_areas(self):
+    """Zero the checked regions/zones (identity + expression), leave the rest."""
+    if not self.head:
+      return
+    labels = self._checked_areas()
+    zones = self._checked_zones()
+    maps = self._checked_maps()
+    if not labels and not zones and not maps:
+      self.status.setText("Reset: nothing checked (use the bottom Reset for "
+                          "the whole head).")
+      return
+    try:
+      for kind in ("identity", "expression"):
+        idxs = []
+        for label in labels:
+          if kind in self._area_ranges[label]:
+            start, end = self._area_ranges[label][kind]
+            idxs.extend(range(start, end + 1))
+        if idxs:
+          self.head.clear(kind, idxs)
+        if zones or maps:  # scale=0 solves the zones back toward neutral
+          self.head.randomize_zones(kind, zones, scale=0.0, update=False,
+                                    maps=maps)
+      if zones or maps:
+        self.head.refresh()
+      self._sync_sliders_from_head()
+      self.status.setText("Reset areas: %s." % ", ".join(
+          labels + zones + [os.path.basename(m)[:-4] for m in maps]))
+      self._push_history()
+    except Exception as e:
+      self._show_error("Area reset failed", e)
+
   # --- variant contact sheet -------------------------------------------------
 
   def _make_candidate(self, kind, seed):

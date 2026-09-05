@@ -29,7 +29,7 @@ reference behavior (other tools, papers, posts) help a lot.
 3. Follow the existing style: 2-space indent, docstrings that explain *why*,
    tooltips for every new UI control, errors surfaced via dialogs.
 4. Test before pushing:
-   - Headless: `mayapy -c "import sys; sys.path.insert(0, r'<repo>/gnm-maya/scripts'); from gnm_maya import smoke_test; smoke_test.run()"`
+   - Headless: `mayapy -c "import sys; sys.path.insert(0, r'<repo>/gnm-maya/scripts'); from gnm_maya import smoke_test; smoke_test.run_headless()"`
    - In Maya: run `gnm-maya/tests/gui_smoke_test.py` from the Script Editor
      (it cleans up after itself).
 5. Update the README if you add or change user-facing behavior.
