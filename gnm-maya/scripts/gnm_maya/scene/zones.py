@@ -162,21 +162,32 @@ def _arm_brush(white=True):
   """Point the Paint Vertex Color tool at a white (or black) Replace brush.
 
   The tool remembers whatever colour was used last (often black), and
-  painting black onto a black map changes nothing — so always set it."""
+  painting black onto a black map changes nothing — so always set it. Done
+  immediately AND deferred: the tool-settings UI is built after the tool
+  activates and re-applies its stored values, overriding an early edit."""
   rgb = (1.0, 1.0, 1.0) if white else (0.0, 0.0, 0.0)
-  for ctx in (PAINT_CTX, mc.currentCtx()):
-    try:
-      if not mc.artAttrPaintVertexCtx(ctx, query=True, exists=True):
+
+  def _apply():
+    for ctx in (PAINT_CTX, mc.currentCtx()):
+      try:
+        if not mc.artAttrPaintVertexCtx(ctx, query=True, exists=True):
+          continue
+        mc.artAttrPaintVertexCtx(ctx, edit=True, colorRGBValue=rgb,
+                                 colorRGBAValue=rgb + (1.0,),
+                                 value=1.0 if white else 0.0,
+                                 selectedattroper="absolute",  # Replace
+                                 paintVertexFace=False)        # per vertex
+        break
+      except Exception:
         continue
-      mc.artAttrPaintVertexCtx(ctx, edit=True, colorRGBValue=rgb,
-                               value=1.0 if white else 0.0,
-                               selectedattroper="absolute",  # Replace
-                               paintVertexFace=False)        # per vertex
-      break
+    try:  # refresh the Tool Settings window so the swatch reflects it
+      mel.eval("artAttrColorPerVertexValues %s;" % PAINT_CTX)
     except Exception:
-      continue
-  try:  # refresh the Tool Settings window so the swatch reflects it
-    mel.eval("artAttrColorPerVertexValues %s;" % PAINT_CTX)
+      pass
+
+  _apply()
+  try:
+    mc.evalDeferred(_apply)
   except Exception:
     pass
 

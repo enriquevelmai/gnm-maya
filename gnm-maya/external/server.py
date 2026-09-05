@@ -42,6 +42,24 @@ def main():
 
   sampler = {"obj": None}  # lazy: only built on first semantic request
   frames = {}              # per-size neutral framing for the render op
+  sculpt_cache = {}        # path -> ((mtime, size), array): residual layer
+
+  def load_sculpt(path):
+    """float32 (V,3) residual from a file written by the Maya side, cached
+    by mtime+size so slider ticks don't re-read 200 KB each time."""
+    if not path:
+      return None
+    import numpy as np
+    try:
+      st = os.stat(path)
+    except OSError:
+      return None
+    key = (st.st_mtime, st.st_size)
+    hit = sculpt_cache.get(path)
+    if hit is None or hit[0] != key:
+      hit = (key, np.fromfile(path, "<f4").reshape(-1, 3))
+      sculpt_cache[path] = hit
+    return hit[1]
 
   def get_sampler():
     if sampler["obj"] is None:
@@ -109,6 +127,7 @@ def main():
             seed=req.get("seed", 0),
             arkit=req.get("arkit", False),
             visemes=req.get("visemes", False),
+            sculpt=load_sculpt(req.get("sculpt")),
         )
         print("BAKED %d" % len(meta["targets"]), flush=True)
       except Exception as e:
@@ -118,12 +137,21 @@ def main():
     if cmd == "zone_randomize":
       try:
         import _zones
-        vec = _zones.zone_randomize(
+        vec, draw = _zones.zone_randomize(
             model, req["kind"], req["zones"],
             identity=req.get("identity"), expression=req.get("expression"),
             scale=req.get("scale", 1.0), seed=req.get("seed"),
-            maps=req.get("maps"))
-        print("COEFF " + json.dumps(vec), flush=True)
+            maps=req.get("maps"), return_draw=True)
+        sculpt_out = req.get("sculpt_out")
+        if sculpt_out:  # exact-mask layer: unmasked verts move by ZERO
+          res = _zones.masked_residual(
+              model, req["kind"], req["zones"], req.get("identity"),
+              req.get("expression"), vec, draw,
+              sculpt_prev=load_sculpt(req.get("sculpt")),
+              maps=req.get("maps"))
+          res.astype("<f4").reshape(-1).tofile(sculpt_out)
+        print("ZONE " + json.dumps({"coeffs": vec, "sculpt": sculpt_out}),
+              flush=True)
       except Exception as e:
         print("ERR %s" % e, flush=True)
       continue
@@ -160,7 +188,8 @@ def main():
                                                size=size)
         verts = core.eval_vertices(model,
                                    identity=req.get("identity"),
-                                   expression=req.get("expression"))
+                                   expression=req.get("expression"),
+                                   sculpt=load_sculpt(req.get("sculpt")))
         img = _render.render_head(verts, np.asarray(model.triangles, np.int32),
                                   frame=frames[size])
         _render.write_png(req["out"], img)
@@ -224,6 +253,7 @@ def main():
           expression=req.get("expression"),
           rotations=req.get("rotations"),
           translation=req.get("translation"),
+          sculpt=load_sculpt(req.get("sculpt")),
       )
       core.write_vertices(verts, out)
       print("OK %s" % out, flush=True)

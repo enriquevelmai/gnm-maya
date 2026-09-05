@@ -128,10 +128,38 @@ def run():
     zn.save_paint(head, "smoketest")
     assert os.path.isfile(zn.map_path("smoketest")), "map file not written"
     head.reset_all()
+    import maya.api.OpenMaya as om2
+
+    def _pts():
+      sel = om2.MSelectionList()
+      sel.add(name)
+      return [(p.x, p.y, p.z)
+              for p in om2.MFnMesh(sel.getDagPath(0)).getPoints()]
+
+    before = _pts()
     head.randomize_zones("identity", [], scale=1.0, seed=2,
                          maps=[zn.map_path("smoketest")])
-    assert any(abs(x) > 1e-6 for x in head.identity), \
-        "painted-map randomize produced nothing"
+    assert any(abs(x) > 1e-6 for x in head.identity), (
+        "painted-map randomize produced nothing")
+    assert head.sculpt is not None and len(head.sculpt) == 3 * nv, (
+        "exact-mask sculpt layer missing")
+    after = _pts()
+    painted_ids = {k for k, wv in enumerate(paint) if wv > 0.5}
+    moved_in = max(abs(a - b) for k in painted_ids
+                   for a, b in zip(after[k], before[k]))
+    moved_out = max(abs(a - b) for k in range(nv) if k not in painted_ids
+                    for a, b in zip(after[k], before[k]))
+    assert moved_in > 1e-4, "painted vertices did not move"
+    assert moved_out < 1e-6, "UNPAINTED vertices moved by %.2e" % moved_out
+    print("[ok] painted map is exact: painted moved %.4f, unpainted %.1e"
+          % (moved_in, moved_out))
+    # the layer persists on the mesh and comes back on adopt
+    head._save_state()
+    twin = GnmHead.adopt(name)
+    assert twin.sculpt is not None and len(twin.sculpt) == 3 * nv, (
+        "sculpt layer not restored on adopt")
+    head.reset_all()
+    assert head.sculpt is None, "reset_all should drop the sculpt layer"
     w = worker.get_worker().zone_weights(["ears"],
                                          maps=[zn.map_path("smoketest")])
     assert len(w) == nv and max(w) > 0.99, "zone_weights preview op failed"

@@ -48,8 +48,10 @@ class GnmWorker(object):
   def alive(self):
     return self.proc.poll() is None
 
-  def eval(self, identity=None, expression=None, rotations=None, translation=None):
-    """Send params, block for the result, return a flat array('f') of verts."""
+  def eval(self, identity=None, expression=None, rotations=None,
+           translation=None, sculpt=None):
+    """Send params, block for the result, return a flat array('f') of verts.
+    ``sculpt`` = path of a float32 (V,3) bind-pose residual file (or None)."""
     if not self.alive():
       raise RuntimeError("GNM server has exited.")
     self._seq += 1
@@ -64,6 +66,8 @@ class GnmWorker(object):
       req["rotations"] = [list(r) for r in rotations]
     if translation is not None:
       req["translation"] = list(translation)
+    if sculpt:
+      req["sculpt"] = str(sculpt)
 
     self.proc.stdin.write(json.dumps(req) + "\n")
     self.proc.stdin.flush()
@@ -125,10 +129,16 @@ class GnmWorker(object):
     return json.loads(resp[len("T2F "):])
 
   def zone_randomize(self, kind, zones, identity=None, expression=None,
-                     scale=1.0, seed=None, maps=None):
-    """Zone-masked randomize (nose/mouth/jaw/...): returns a full coefficient
-    vector for ``kind`` whose effect is confined to ``zones`` and painted
-    ``maps`` (float32 [V] files). scale=0 resets the zones toward neutral."""
+                     scale=1.0, seed=None, maps=None, sculpt=None,
+                     sculpt_out=None):
+    """Zone-masked randomize (nose/mouth/jaw/... + painted maps).
+
+    Returns {"coeffs": [...], "sculpt": path|None}. When ``sculpt_out`` is
+    given the server also writes the EXACT-mask residual layer there (on top
+    of the previous ``sculpt`` file), so unmasked vertices move by zero.
+    scale=0 resets the zones toward neutral."""
+    if not self.alive():
+      raise RuntimeError("GNM server has exited.")
     req = {"cmd": "zone_randomize", "kind": str(kind),
            "zones": [str(z) for z in zones], "scale": float(scale)}
     if maps:
@@ -139,7 +149,16 @@ class GnmWorker(object):
       req["expression"] = [float(x) for x in expression]
     if seed is not None:
       req["seed"] = int(seed)
-    return self._sample(req)
+    if sculpt:
+      req["sculpt"] = str(sculpt)
+    if sculpt_out:
+      req["sculpt_out"] = str(sculpt_out)
+    self.proc.stdin.write(json.dumps(req) + "\n")
+    self.proc.stdin.flush()
+    resp = self.proc.stdout.readline().strip()
+    if not resp.startswith("ZONE "):
+      raise RuntimeError("GNM zone randomize failed: %s" % resp)
+    return json.loads(resp[len("ZONE "):])
 
   def mask_texture(self, out, zones, maps=None, size=1024):
     """Write a UV-space PNG of the zones/maps mask; returns the path."""
@@ -163,13 +182,16 @@ class GnmWorker(object):
       req["maps"] = [str(p) for p in maps]
     return self._sample(req)
 
-  def render(self, out, identity=None, expression=None, size=128):
+  def render(self, out, identity=None, expression=None, size=128,
+             sculpt=None):
     """Render a head thumbnail PNG (orthographic, gallery framing) to ``out``.
 
     Returns the written path. Used by the Variants contact sheet."""
     if not self.alive():
       raise RuntimeError("GNM server has exited.")
     req = {"cmd": "render", "out": str(out), "size": int(size)}
+    if sculpt:
+      req["sculpt"] = str(sculpt)
     if identity is not None:
       req["identity"] = [float(x) for x in identity]
     if expression is not None:
@@ -204,7 +226,7 @@ class GnmWorker(object):
     return self._sample(req)
 
   def bake(self, identity=None, num_modes=0, semantic=True, seed=0,
-           arkit=False, visemes=False):
+           arkit=False, visemes=False, sculpt=None):
     """Export rig data (targets/weights/joints) into the session dir.
 
     ``arkit`` renames/splits the semantic targets to ARKit-52 blendshape
@@ -216,6 +238,8 @@ class GnmWorker(object):
     req = {"cmd": "bake", "num_modes": int(num_modes),
            "semantic": bool(semantic), "seed": int(seed),
            "arkit": bool(arkit), "visemes": bool(visemes)}
+    if sculpt:
+      req["sculpt"] = str(sculpt)
     if identity is not None:
       req["identity"] = [float(x) for x in identity]
     self.proc.stdin.write(json.dumps(req) + "\n")

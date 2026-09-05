@@ -208,7 +208,8 @@ def _solver(model, kind, zones, maps=None):
 
 
 def zone_randomize(model, kind, zones, identity=None, expression=None,
-                   scale=1.0, seed=None, clamp=4.0, maps=None):
+                   scale=1.0, seed=None, clamp=4.0, maps=None,
+                   return_draw=False):
   """One new full ``kind`` coefficient vector, changed only inside ``zones``
   (+ painted ``maps``).
 
@@ -239,7 +240,42 @@ def zone_randomize(model, kind, zones, identity=None, expression=None,
   b = s["Bw"] @ y + s["lam"] * cur
   x = s["Ainv"] @ b.astype(np.float64)
   x = np.clip(x, -clamp, clamp)
-  return [float(v) for v in x]
+  out = [float(v) for v in x]
+  if return_draw:
+    return out, r
+  return out
+
+
+def masked_residual(model, kind, zones, identity, expression, x, r,
+                    sculpt_prev=None, maps=None):
+  """The EXACT-mask layer: everything the in-model solve could not confine.
+
+  target   = cur + w * (rand - cur)        (bind pose, w = zone/map weights)
+  new      = eval(x)                       (the ridge solution)
+  residual = target - new                  -> added on top of eval(x)
+
+  So the final head equals ``cur`` wherever w == 0 (unpainted verts do not
+  move at all, up to float precision) and the requested blend inside the
+  mask. Accumulates on any previous residual layer. Returns float32 (V, 3).
+  """
+  import _gnm_core as core
+  cur_id = None if identity is None else np.asarray(identity, np.float32)
+  cur_ex = None if expression is None else np.asarray(expression, np.float32)
+  x = np.asarray(x, np.float32)
+  r = np.asarray(r, np.float32)
+  base = core.eval_bind(model, cur_id, cur_ex)
+  if kind == "identity":
+    rand = core.eval_bind(model, r, cur_ex)
+    new = core.eval_bind(model, x, cur_ex)
+  else:
+    rand = core.eval_bind(model, cur_id, r)
+    new = core.eval_bind(model, cur_id, x)
+  w = zone_weights(model, zones, maps=maps)[:, None]
+  residual = base + w * (rand - base) - new
+  if sculpt_prev is not None:
+    residual = residual + np.asarray(sculpt_prev, np.float32).reshape(
+        residual.shape)
+  return residual.astype(np.float32)
 
 
 # --- UV-space mask texture (viewport preview) ------------------------------------

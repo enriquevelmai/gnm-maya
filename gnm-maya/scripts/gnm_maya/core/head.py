@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Dynamic string attribute where each head stores its coefficient state, so a
 # panel can adopt an existing head and restore its exact sliders.
+SCULPT_ATTR = "gnmSculpt"
 STATE_ATTR = "gnmState"
 
 
@@ -62,6 +63,12 @@ class GnmHead(object):
     self.num_joints = topo.meta["num_joints"]
     self.rotations = [[0.0, 0.0, 0.0] for _ in range(self.num_joints)]
     self.translation = [0.0, 0.0, 0.0]
+    # Exact-mask sculpt layer: flat [3V] bind-pose residual (or None). Written
+    # by masked randomize so unpainted vertices move by zero; evaluated by
+    # the worker before skinning. Sent as a file, re-written only on change.
+    self.sculpt = None
+    self._sculpt_path = None
+    self._sculpt_ver = 0
     # Symmetric left<->right maps (both directions) for the UI symmetry toggle.
     self.expression_mirror = self._sym_map(topo.meta.get("expression_mirror", []))
     self.joint_mirror = self._sym_map(topo.meta.get("joint_mirror", []))
@@ -89,6 +96,16 @@ class GnmHead(object):
         "translation": self.translation,
     })
     mc.setAttr(attr, data, type="string")
+    # The sculpt layer is big (3V floats): keep it as a doubleArray attr and
+    # only rewrite it when it actually changed (not on every slider tick).
+    if getattr(self, "_sculpt_saved_ver", -1) != self._sculpt_ver:
+      sattr = "%s.%s" % (self.transform, SCULPT_ATTR)
+      if not mc.attributeQuery(SCULPT_ATTR, node=self.transform, exists=True):
+        mc.addAttr(self.transform, longName=SCULPT_ATTR,
+                   dataType="doubleArray")
+      vals = self.sculpt or []
+      mc.setAttr(sattr, vals, type="doubleArray")  # takes the list itself
+      self._sculpt_saved_ver = self._sculpt_ver
 
   def _load_state(self):
     if not mc.attributeQuery(STATE_ATTR, node=self.transform, exists=True):
@@ -102,6 +119,9 @@ class GnmHead(object):
       self.expression = [float(x) for x in d["expression"]]
       self.rotations = [[float(a) for a in r] for r in d["rotations"]]
       self.translation = [float(x) for x in d["translation"]]
+      if mc.attributeQuery(SCULPT_ATTR, node=self.transform, exists=True):
+        vals = mc.getAttr("%s.%s" % (self.transform, SCULPT_ATTR)) or []
+        self.set_sculpt([float(v) for v in vals] if len(vals) else None)
       return True
     except Exception:
       logger.exception("Ignoring corrupt %s on '%s'", STATE_ATTR, self.transform)
@@ -109,12 +129,43 @@ class GnmHead(object):
 
   # --- state mutation ------------------------------------------------------
 
+  # --- sculpt layer --------------------------------------------------------
+
+  def set_sculpt(self, flat):
+    """Replace the residual layer ([3V] floats or None). Persisted with the
+    head; sent to the worker as a fresh versioned file (server caches it)."""
+    self.sculpt = list(flat) if flat else None
+    self._sculpt_ver += 1
+    self._sculpt_path = None
+    if self.sculpt:
+      import array
+      import os
+      safe = "".join(c if c.isalnum() else "_" for c in self.transform)
+      path = os.path.join(self.worker.session_dir,
+                          "sculpt_%s_%d.bin" % (safe, self._sculpt_ver))
+      with open(path, "wb") as f:
+        array.array("f", self.sculpt).tofile(f)
+      self._sculpt_path = path
+
+  def load_sculpt_file(self, path):
+    """Adopt a residual written by the worker (zone randomize / variants)."""
+    import array
+    a = array.array("f")
+    with open(path, "rb") as f:
+      a.frombytes(f.read())
+    self.set_sculpt(list(a))
+
+  def clear_sculpt(self):
+    if self.sculpt is not None:
+      self.set_sculpt(None)
+
   def _update(self):
     verts = self.worker.eval(
         identity=self.identity,
         expression=self.expression,
         rotations=self.rotations,
         translation=self.translation,
+        sculpt=self._sculpt_path,
     )
     if not mc.objExists(self.transform):
       # The user deleted the mesh: self-heal by rebuilding it with the
@@ -231,10 +282,15 @@ class GnmHead(object):
     coefficient vector — sliders/presets/baking stay fully consistent.
     ``scale=0`` resets the zones toward neutral.
     """
-    vec = self.worker.zone_randomize(kind, list(zones),
+    import os
+    out = os.path.join(self.worker.session_dir,
+                       "sculpt_tmp_%d.bin" % (self._sculpt_ver + 1))
+    res = self.worker.zone_randomize(kind, list(zones),
                                      identity=self.identity,
                                      expression=self.expression,
-                                     scale=scale, seed=seed, maps=maps)
+                                     scale=scale, seed=seed, maps=maps,
+                                     sculpt=self._sculpt_path, sculpt_out=out)
+    vec = res["coeffs"]
     if kind == "identity":
       self.identity = [float(x) for x in vec]
     else:
@@ -244,6 +300,8 @@ class GnmHead(object):
           if a < b:
             vals[b] = vals[a]
       self.expression = vals
+    if res.get("sculpt"):
+      self.load_sculpt_file(res["sculpt"])  # exact mask: rest moves by zero
     if update:
       self._update()
     logger.info("Zone-randomized %s %s (scale=%.2f) on '%s'",
@@ -341,10 +399,10 @@ class GnmHead(object):
     self._update()
 
   def reset_identity(self):
-    self.identity = [0.0] * len(self.identity); self._update()
+    self.identity = [0.0] * len(self.identity); self.clear_sculpt(); self._update()
 
   def reset_expression(self):
-    self.expression = [0.0] * len(self.expression); self._update()
+    self.expression = [0.0] * len(self.expression); self.clear_sculpt(); self._update()
 
   def reset_pose(self):
     self.rotations = [[0.0, 0.0, 0.0] for _ in range(self.num_joints)]

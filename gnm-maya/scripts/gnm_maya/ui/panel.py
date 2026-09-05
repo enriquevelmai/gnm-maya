@@ -215,7 +215,8 @@ class GnmPanel(QtWidgets.QWidget):
     h = self.head
     return {"identity": list(h.identity), "expression": list(h.expression),
             "rotations": [list(r) for r in h.rotations],
-            "translation": list(h.translation)}
+            "translation": list(h.translation),
+            "sculpt": list(h.sculpt) if h.sculpt else None}
 
   def _push_history(self):
     """Record the current state after a discrete action (randomize, sample,
@@ -239,6 +240,8 @@ class GnmPanel(QtWidgets.QWidget):
     h.expression = list(snap["expression"])
     h.rotations = [list(r) for r in snap["rotations"]]
     h.translation = list(snap["translation"])
+    if (snap.get("sculpt") or None) != (h.sculpt or None):
+      h.set_sculpt(snap.get("sculpt"))
     h.refresh()
     self._sync_sliders_from_head()
 
@@ -692,8 +695,10 @@ class GnmPanel(QtWidgets.QWidget):
     zlbl.setFixedWidth(52)
     zlbl.setToolTip(
         "<b>Feature zones</b><br>Geometry masks for areas the model has no "
-        "dedicated modes for; a fit solver confines the change to the zone "
-        "(softly — a natural falloff halo remains).")
+        "dedicated modes for. The change is EXACTLY confined to the mask: a "
+        "fit finds the nearest in-model shape and a per-vertex residual layer "
+        "makes up the difference, so unmasked vertices don't move at all. "
+        "The mask's own falloff controls how soft the edge is.")
     r2.addWidget(zlbl)
     for zone in ("nose", "mouth", "jaw", "brows", "eyes", "ears", "back_head"):
       cb = QtWidgets.QCheckBox(zone.replace("_", " ").title())
@@ -712,8 +717,9 @@ class GnmPanel(QtWidgets.QWidget):
     plbl.setToolTip(
         "<b>Painted maps</b><br>Your own per-vertex masks. Painted… ▸ New "
         "creates one; then select vertices/faces on the head (soft selection "
-        "and symmetry work) and Add / Remove selection. They persist across "
-        "scenes. A vertex-colour brush is also available under Brush.")
+        "and symmetry work) and Add / Remove selection. Only painted vertices "
+        "move (weight = how much); a hard-edged map gives a hard edge. They "
+        "persist across scenes. A vertex-colour brush is under Brush.")
     self._map_row.addWidget(plbl)
     self._map_row.addStretch(1)
     paint_btn = QtWidgets.QPushButton("Painted…")
@@ -1035,16 +1041,22 @@ class GnmPanel(QtWidgets.QWidget):
       for a, b in self.head.expression_mirror.items():
         if a < b:
           vec[b] = vec[a]
+    sculpt_path = self.head._sculpt_path
     if zones or maps:
-      out = self.head.worker.zone_randomize(
+      import tempfile
+      sculpt_out = os.path.join(self.head.worker.session_dir,
+                                "sculpt_cand_%d.bin" % seed)
+      res = self.head.worker.zone_randomize(
           kind, zones, identity=cid, expression=cex,
-          scale=self._scale_value, seed=seed, maps=maps)
-      vec[:] = [float(x) for x in out]
+          scale=self._scale_value, seed=seed, maps=maps,
+          sculpt=sculpt_path, sculpt_out=sculpt_out)
+      vec[:] = [float(x) for x in res["coeffs"]]
+      sculpt_path = res.get("sculpt") or sculpt_path
       if kind == "expression" and self._symmetry:
         for a, b in self.head.expression_mirror.items():
           if a < b:
             vec[b] = vec[a]
-    return cid, cex
+    return cid, cex, sculpt_path
 
   def _open_variants(self):
     """3x3 contact sheet of candidate randomizations; click one to apply."""
@@ -1091,9 +1103,13 @@ class GnmPanel(QtWidgets.QWidget):
       if cand is None or not self.head:
         return
       try:
-        cid, cex = cand
+        cid, cex, sculpt_path = cand
         self.head.identity = list(cid)
         self.head.expression = list(cex)
+        if sculpt_path and sculpt_path != self.head._sculpt_path:
+          self.head.load_sculpt_file(sculpt_path)
+        elif not sculpt_path:
+          self.head.clear_sculpt()
         self.head.refresh()
         self._sync_sliders_from_head()
         self.status.setText("Applied variant %d." % (n + 1))
@@ -1107,11 +1123,12 @@ class GnmPanel(QtWidgets.QWidget):
       try:
         for n, btn in enumerate(cells):
           seed = self._rand_seed()
-          cid, cex = self._make_candidate(kind, seed)
+          cid, cex, sculpt_path = self._make_candidate(kind, seed)
           png = os.path.join(tmpdir, "var_%d_%d.png" % (n, seed))
-          self.head.worker.render(png, identity=cid, expression=cex, size=150)
+          self.head.worker.render(png, identity=cid, expression=cex, size=150,
+                                  sculpt=sculpt_path)
           btn.setIcon(QtGui.QIcon(png))
-          state["cands"][n] = (cid, cex)
+          state["cands"][n] = (cid, cex, sculpt_path)
           QtWidgets.QApplication.processEvents()
       except Exception as e:
         self._show_error("Variant generation failed", e)

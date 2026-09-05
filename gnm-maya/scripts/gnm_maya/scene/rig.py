@@ -54,7 +54,8 @@ def bake_rig(head, num_modes=0, semantic=True, name=None, arkit=False,
   worker = head.worker
   topo = head.topology
   meta = worker.bake(identity=head.identity, num_modes=num_modes,
-                     semantic=semantic, arkit=arkit, visemes=visemes)
+                     semantic=semantic, arkit=arkit, visemes=visemes,
+                     sculpt=getattr(head, "_sculpt_path", None))
   sess = worker.session_dir
   name = name or (head.transform + "_rig")
 

@@ -61,21 +61,55 @@ def _mirror_pairs(names):
 
 
 def eval_vertices(model, identity=None, expression=None, rotations=None,
-                  translation=None):
-  """Evaluate the mesh; returns float32 (V, 3)."""
+                  translation=None, sculpt=None):
+  """Evaluate the mesh; returns float32 (V, 3).
+
+  ``sculpt`` is an optional (V, 3) BIND-POSE residual (the exact-mask layer
+  from masked randomization). It is added after the identity/expression
+  blend and before pose correctives + skinning — i.e. exactly where a hand
+  sculpt of the neutral head would live — so it follows joint rotations.
+  """
   def arr(x, dim):
     if x is None:
       return None
     a = np.asarray(x, dtype=np.float32)
     return a if a.size else None
 
-  verts = model(
-      identity=arr(identity, model.identity_dim),
-      expression=arr(expression, model.expression_dim),
-      rotations=None if rotations is None else np.asarray(rotations, np.float32),
-      translation=None if translation is None else np.asarray(translation, np.float32),
-  )
-  return np.asarray(verts, dtype=np.float32).reshape(-1, 3)
+  ident = arr(identity, model.identity_dim)
+  expr = arr(expression, model.expression_dim)
+  rot = None if rotations is None else np.asarray(rotations, np.float32)
+  trans = None if translation is None else np.asarray(translation, np.float32)
+  if sculpt is None:
+    verts = model(identity=ident, expression=expr, rotations=rot,
+                  translation=trans)
+    return np.asarray(verts, dtype=np.float32).reshape(-1, 3)
+
+  # Mirror of GNM.__call__ with the residual injected in bind pose.
+  dt = model.template_vertex_positions.dtype
+  if ident is None:
+    ident = np.zeros(model.identity_dim, dt)
+  if expr is None:
+    expr = np.zeros(model.expression_dim, dt)
+  if rot is None:
+    rot = np.zeros((model.num_joints, 3), dt)
+  if trans is None:
+    trans = np.zeros(3, dt)
+  verts = np.asarray(model.vertex_positions_bind_pose(ident, expr), np.float32)
+  joints = model.joint_positions_bind_pose(ident)
+  verts = verts + np.asarray(model.compute_pose_correctives(rot), np.float32)
+  verts = verts + np.asarray(sculpt, np.float32).reshape(verts.shape)
+  out = model.vertex_positions_world(verts, joints, rot, trans)
+  return np.asarray(out, dtype=np.float32).reshape(-1, 3)
+
+
+def eval_bind(model, identity=None, expression=None):
+  """Bind-pose vertices (no pose, no skinning) — the space the sculpt
+  residual lives in."""
+  def arr(x, dim):
+    return np.zeros(dim, np.float32) if x is None else np.asarray(x, np.float32)
+  v = model.vertex_positions_bind_pose(arr(identity, model.identity_dim),
+                                       arr(expression, model.expression_dim))
+  return np.asarray(v, np.float32).reshape(-1, 3)
 
 
 def write_vertices(verts, path):
@@ -211,7 +245,8 @@ def _side_masks(neutral, left_positive):
 
 
 def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
-                    mode_scale=2.0, seed=0, arkit=False, visemes=False):
+                    mode_scale=2.0, seed=0, arkit=False, visemes=False,
+                    sculpt=None):
   """Write everything Maya needs to bake a self-sufficient rig.
 
   Targets are evaluated at the CURRENT identity with zero pose, so blendshape
@@ -225,7 +260,8 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
   import numpy as np  # local: keep module import cheap for availability probe
 
   identity = None if identity is None else np.asarray(identity, np.float32)
-  neutral = eval_vertices(model, identity=identity)
+  sculpt = None if sculpt is None else np.asarray(sculpt, np.float32)
+  neutral = eval_vertices(model, identity=identity, sculpt=sculpt)
   write_vertices(neutral, os.path.join(out_dir, "rig_neutral.bin"))
 
   targets = []
@@ -236,8 +272,8 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
     targets.append({"name": name, "file": fname})
 
   def add_target(name, expr_vec):
-    write_target(name,
-                 eval_vertices(model, identity=identity, expression=expr_vec))
+    write_target(name, eval_vertices(model, identity=identity,
+                                     expression=expr_vec, sculpt=sculpt))
 
   # 20 semantic expression targets (fixed per-class seed => reproducible bake).
   if sampler is not None:
@@ -248,7 +284,7 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
       wl = _semantic.EXPRESSION.index("wink_left")
       d = (eval_vertices(model, identity=identity,
                          expression=sampler.sample_expression(
-                             wl, seed=seed + wl)) - neutral)
+                             wl, seed=seed + wl), sculpt=sculpt) - neutral)
       mag = np.linalg.norm(d, axis=1)
       cx = float((neutral[:, 0] * mag).sum() / max(float(mag.sum()), 1e-12))
       left_positive = cx > 0.0  # wink_left moves the performer's-left side
@@ -259,7 +295,8 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
         add_target(name, expr_vec)
         continue
       arkit_names = ARKIT_MAP[name]
-      verts = eval_vertices(model, identity=identity, expression=expr_vec)
+      verts = eval_vertices(model, identity=identity, expression=expr_vec,
+                            sculpt=sculpt)
       delta = verts - neutral
       zones = ARKIT_ZONE_MASK.get(name)
       if zones:  # confine the full-face GNM shape to its ARKit region
@@ -282,7 +319,7 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
       import _zones
       for out_name, (src, zones) in ARKIT_DERIVED.items():
         verts = eval_vertices(model, identity=identity,
-                              expression=_semantic_vec(src))
+                              expression=_semantic_vec(src), sculpt=sculpt)
         zw = _zones.zone_weights(model, list(zones), shrink=0.7)
         write_target(out_name, neutral + (verts - neutral) * zw[:, None])
 
@@ -293,7 +330,8 @@ def export_rig_data(model, out_dir, identity, num_modes=0, sampler=None,
         vec = np.zeros(model.expression_dim, np.float32)
         for src, wgt in recipe:
           vec += float(wgt) * np.asarray(_semantic_vec(src), np.float32)
-        verts = eval_vertices(model, identity=identity, expression=vec)
+        verts = eval_vertices(model, identity=identity, expression=vec,
+                              sculpt=sculpt)
         write_target(vname, neutral + (verts - neutral) * zw[:, None])
 
   # Optional: the first N raw basis modes OF EACH REGION as individual

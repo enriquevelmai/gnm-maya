@@ -52,6 +52,7 @@ def save_preset(head, name):
       "expression": [float(x) for x in head.expression],
       "rotations": [[float(a) for a in r] for r in head.rotations],
       "translation": [float(x) for x in head.translation],
+      "sculpt": [float(x) for x in (head.sculpt or [])],
       "saved": datetime.datetime.now().isoformat(timespec="seconds"),
   }
   with open(path, "w") as f:
@@ -134,6 +135,7 @@ def load_preset(head, name_or_path):
   _copy_into(head.identity, data.get("identity", []))
   _copy_into(head.expression, data.get("expression", []))
   _copy_into(head.translation, data.get("translation", []))
+  head.set_sculpt(data.get("sculpt") or None)
   rotations = data.get("rotations", [])
   for j in range(min(len(head.rotations), len(rotations))):
     _copy_into(head.rotations[j], rotations[j])

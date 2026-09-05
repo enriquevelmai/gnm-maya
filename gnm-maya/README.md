@@ -103,7 +103,7 @@ Per-platform notes:
     *Areas*: everything that randomizes only what you check —
     **Regions** (the model's own basis groups: exact coefficient masks),
     **Zones** (Nose / Mouth / Jaw / Brows / Eyes / Ears / Back head —
-    geometric masks solved back into coefficients), and your own
+    geometric masks; the change stays exactly inside the mask), and your own
     **Painted** maps (below). **Randomize Identity / Expression** re-roll
     just the checked areas, **Variants…** shows a 3×3 contact sheet to pick
     from, **Reset** returns them to neutral, **Show** spotlights the mask on
@@ -129,7 +129,8 @@ Per-platform notes:
   `~/Documents/maya/gnm_zones` (they persist across scenes and heads), show up
   as checkboxes next to the built-in zones and behave exactly like them: the
   random change is multiplied by your map, so **only what you painted moves**
-  (softly at the edge, since the fit stays inside the model's shape space).
+  — exactly: a hard-edged map gives a hard edge, a soft-selection map a soft
+  one, and unpainted vertices don't move at all.
   **Show** spotlights any combination on the head as a UV texture on a
   temporary material. A vertex-colour *Brush* mode is kept under the same
   menu for those who prefer painting strokes — heads are shaded with Maya's
@@ -317,6 +318,17 @@ only speak up when something newer exists):
     only (e.g. `v1.0.0`).
   - **Dev** — the tip of the `master` branch by commit id: fixes arrive as
     soon as they are pushed, before they are packaged in a release.
+
+## How masked randomization stays exact
+
+GNM's identity/expression bases are global — no combination of coefficients
+moves *only* the nose. So a masked randomize does two things: a ridge solve
+finds the closest in-model coefficients whose change lives in the mask, and
+the difference between that and the exact masked target is stored on the head
+as a per-vertex **sculpt layer** (bind-pose residual, applied by the worker
+before pose skinning, persisted on the mesh, carried into presets, history,
+variants and baked rigs). Coefficients stay editable with the sliders;
+unmasked vertices stay bit-for-bit where they were. Reset drops the layer.
 
 ## Community & inspiration
 
