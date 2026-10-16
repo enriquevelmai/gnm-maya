@@ -95,10 +95,13 @@ def latest_commit(timeout=15):
   req = urllib.request.Request(url, headers=_UA)
   with urllib.request.urlopen(req, timeout=timeout) as r:
     data = json.load(r)
+  # Download by exact SHA, never by branch name: GitHub serves branch zips
+  # from a cache that can lag minutes behind the push, which installed older
+  # code than the version being recorded.
   return {"version": data["sha"],
           "date": data["commit"]["committer"]["date"],
-          "zip_url": "https://github.com/%s/archive/refs/heads/%s.zip"
-                     % (REPO, BRANCH)}
+          "zip_url": "https://github.com/%s/archive/%s.zip"
+                     % (REPO, data["sha"])}
 
 
 def latest_release(timeout=15):
