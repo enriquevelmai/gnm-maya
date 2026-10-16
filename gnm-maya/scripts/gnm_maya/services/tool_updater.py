@@ -136,16 +136,65 @@ def check():
   }
 
 
+def _overlay_dir(src_dir, dst_dir):
+  """Copy src over dst file by file, then delete files that vanished upstream.
+
+  Fallback when the directory can't be renamed: on Windows Maya keeps the
+  loaded package's folder busy, but individual .py files can still be
+  overwritten in place, so the update still lands.
+  """
+  for root, _dirs, files in os.walk(src_dir):
+    rel = os.path.relpath(root, src_dir)
+    out = dst_dir if rel == "." else os.path.join(dst_dir, rel)
+    os.makedirs(out, exist_ok=True)
+    for fname in files:
+      shutil.copy2(os.path.join(root, fname), os.path.join(out, fname))
+  for root, _dirs, files in os.walk(dst_dir, topdown=False):
+    if "__pycache__" in root:
+      continue
+    rel = os.path.relpath(root, dst_dir)
+    src_root = src_dir if rel == "." else os.path.join(src_dir, rel)
+    for fname in files:
+      if not os.path.isfile(os.path.join(src_root, fname)):
+        try:
+          os.remove(os.path.join(root, fname))
+        except OSError:
+          pass
+    if not os.path.isdir(src_root):
+      try:
+        os.rmdir(root)
+      except OSError:
+        pass
+
+
 def _replace_dir(src_dir, dst_dir):
-  """Wholesale directory replace: rename old aside, move new in, drop old."""
+  """Wholesale directory replace: rename old aside, move new in, drop old.
+
+  If Windows refuses the rename (Maya holds the loaded package), fall back to
+  an in-place overlay. Previously the refusal aborted the whole update before
+  anything was written, so the recorded version never advanced and the
+  update prompt came back on every launch.
+  """
   if not os.path.isdir(src_dir):
     return  # nothing of this kind shipped upstream; leave the local one alone
+  if not os.path.isdir(dst_dir):
+    shutil.move(src_dir, dst_dir)
+    return
   old = dst_dir + "_old"
   if os.path.isdir(old):
     shutil.rmtree(old, ignore_errors=True)
-  if os.path.isdir(dst_dir):
+  try:
     os.rename(dst_dir, old)
-  shutil.move(src_dir, dst_dir)
+  except OSError as e:
+    logger.info("Rename refused for %s (%s) - overlaying in place", dst_dir, e)
+    _overlay_dir(src_dir, dst_dir)
+    return
+  try:
+    shutil.move(src_dir, dst_dir)
+  except Exception:
+    if not os.path.isdir(dst_dir):
+      os.rename(old, dst_dir)  # put the original back rather than lose it
+    raise
   shutil.rmtree(old, ignore_errors=True)
 
 
@@ -169,6 +218,10 @@ def _sync_external_py(src_external, dst_external):
       os.remove(os.path.join(dst_external, fname))  # removed upstream
 
 
+# Describe THIS install; the repo copy must never overwrite them.
+_STATE_FILES = ("TOOL_VERSION.json",)
+
+
 def _sync_top_level(src_root, dst_root):
   """Overwrite loose top-level files (README, NOTICE, LICENSE, installers).
 
@@ -180,6 +233,8 @@ def _sync_top_level(src_root, dst_root):
     src_path = os.path.join(src_root, entry)
     if os.path.isdir(src_path) or entry.startswith("."):
       continue  # directories handled separately; dotfiles left alone
+    if entry in _STATE_FILES:
+      continue  # never overwrite this install's recorded version/channel
     shutil.copy2(src_path, os.path.join(dst_root, entry))
 
 
@@ -212,16 +267,23 @@ def _restore_gallery(aside):
   logger.info("Kept the locally rendered full-size shape gallery.")
 
 
-def download_and_install(timeout=180):
-  """Download the channel's repo zip and sync gnm-maya/ onto this install."""
+def download_and_install(timeout=180, latest=None):
+  """Download the channel's repo zip and sync gnm-maya/ onto this install.
+
+  ``latest`` reuses a version the caller already resolved, so the files
+  installed and the version recorded always describe the same commit.
+  """
   if not os.access(config.MODULE_ROOT, os.W_OK):
     raise RuntimeError("Module folder is not writable: %s" % config.MODULE_ROOT)
 
   channel = get_channel()
-  latest = latest_release() if channel == CHANNEL_RELEASE else latest_commit()
+  if latest is None:
+    latest = latest_release() if channel == CHANNEL_RELEASE else latest_commit()
   url = latest["zip_url"]
   logger.info("Downloading %s ...", url)
-  req = urllib.request.Request(url, headers=_UA)
+  headers = dict(_UA)
+  headers["Cache-Control"] = "no-cache"  # GitHub caches branch zips
+  req = urllib.request.Request(url, headers=headers)
   with urllib.request.urlopen(req, timeout=timeout) as r:
     blob = r.read()
 
@@ -253,6 +315,12 @@ def download_and_install(timeout=180):
   stamp["tag" if channel == CHANNEL_RELEASE else "sha"] = latest["version"]
   with open(_VERSION_FILE, "w") as f:
     json.dump(stamp, f, indent=2)
+  key = "tag" if channel == CHANNEL_RELEASE else "sha"
+  if installed_info().get(key) != latest["version"]:
+    raise RuntimeError(
+        "Files updated but the version could not be recorded in %s, so the "
+        "update prompt would keep coming back. Check the file is writable."
+        % _VERSION_FILE)
 
   try:
     from gnm_maya.core import worker

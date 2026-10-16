@@ -1988,7 +1988,12 @@ def _check_updates_async_generic(mod, display_name, menu_hint):
         return
       mc.waitCursor(state=True)
       try:
-        latest = mod.download_and_install()
+        if "zip_url" in info:  # tool updater: install exactly what was offered
+          latest = mod.download_and_install(latest={
+              "version": info["latest_sha"], "date": info["latest_date"],
+              "zip_url": info["zip_url"]})
+        else:
+          latest = mod.download_and_install()
       except Exception as e:
         mc.waitCursor(state=False)
         mc.confirmDialog(title="%s Update" % display_name, icon="critical",
