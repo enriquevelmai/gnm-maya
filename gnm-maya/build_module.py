@@ -2,126 +2,54 @@
 """Reproducibly (re)build the module's ``runtime/`` interpreter (dev helper).
 
 End users never run this — the same logic runs automatically on first use
-(scripts/gnm_maya/services/bootstrap.py). It exists so developers can rebuild
-the runtime without Maya.
+(scripts/gnm_maya/services/bootstrap.py, which this script simply calls). It
+exists so developers can rebuild the runtime without Maya. Run it with any
+Python 3.8+; the runtime it builds is the portable Python 3.12 the bootstrap
+downloads (Windows: python.org embeddable zip; macOS/Linux:
+python-build-standalone), so the host interpreter's version does not matter:
 
-Windows — run with a **Python 3.11** interpreter (to match the embeddable
-build and get cp311 numpy wheels):
+    python build_module.py
 
-    py -3.11 build_module.py
-
-It downloads the official Windows embeddable CPython, enables site-packages,
-and installs exactly the deps the numpy GNM head path needs. The result is
-fully self-contained and relocatable. (Why embeddable instead of a venv: a
-venv's ``pyvenv.cfg`` hardcodes the base interpreter's path, so a copied venv
-breaks on any machine that lacks that exact Python.)
-
-Linux/macOS — run with any Python 3.9+:
-
-    python3 build_module.py
-
-There is no embeddable CPython for posix, so a venv is created at ``runtime/``
-instead. It references the interpreter that built it — rebuild (delete
-runtime/ and re-run) if you move the module folder.
+The existing ``runtime/`` is deleted first, then a template head is generated
+through the new runtime as a self-test.
 """
 
 from __future__ import annotations
 
-import io
 import os
+import shutil
 import subprocess
 import sys
-import urllib.request
-import zipfile
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RUNTIME = os.path.join(HERE, "runtime")
-EXTERNAL = os.path.join(HERE, "external")
 
-IS_WINDOWS = os.name == "nt"
+# gnm_maya/__init__.py imports maya.cmds; register a bare package instead so
+# its Maya-free submodules (config, bootstrap) import outside Maya.
+_pkg = types.ModuleType("gnm_maya")
+_pkg.__path__ = [os.path.join(HERE, "scripts", "gnm_maya")]
+sys.modules.setdefault("gnm_maya", _pkg)
 
-PY_VER = "3.11.9"
-EMBED_URL = ("https://www.python.org/ftp/python/%s/"
-             "python-%s-embed-amd64.zip" % (PY_VER, PY_VER))
-
-# Minimal, verified dependency set for gnm.shape.gnm_numpy (the head path).
-# scipy is intentionally excluded (unused by the head path; ~139 MB saved).
-REQUIREMENTS = [
-    "numpy",
-    "absl-py",
-    "etils",
-    "immutabledict",
-    "einops",
-    "typing_extensions",
-    "h5py",  # reads the semantic-sampler decoder weights (no TensorFlow needed)
-]
-
-_PTH = "python311.zip\n.\nLib\\site-packages\n\nimport site\n"
-
-
-def _runtime_python():
-  if IS_WINDOWS:
-    return os.path.join(RUNTIME, "python.exe")
-  return os.path.join(RUNTIME, "bin", "python3")
-
-
-def _build_windows():
-  if sys.version_info[:2] != (3, 11):
-    sys.exit("Run this with Python 3.11 so bundled numpy matches "
-             "the 3.11 embeddable runtime (got %d.%d)." % sys.version_info[:2])
-
-  print("Downloading embeddable CPython %s ..." % PY_VER)
-  data = urllib.request.urlopen(EMBED_URL).read()
-  with zipfile.ZipFile(io.BytesIO(data)) as z:
-    z.extractall(RUNTIME)
-
-  # Enable site-packages on the runtime's import path.
-  with open(os.path.join(RUNTIME, "python311._pth"), "w") as f:
-    f.write(_PTH)
-
-  site_packages = os.path.join(RUNTIME, "Lib", "site-packages")
-  os.makedirs(site_packages, exist_ok=True)
-
-  print("Installing dependencies into runtime ...")
-  subprocess.check_call([
-      sys.executable, "-m", "pip", "install", "--upgrade",
-      "--target", site_packages, *REQUIREMENTS,
-  ])
-
-
-def _build_posix():
-  if sys.version_info[:2] < (3, 9):
-    sys.exit("Run this with Python 3.9+ (got %d.%d)." % sys.version_info[:2])
-
-  print("Creating venv at %s ..." % RUNTIME)
-  subprocess.check_call([sys.executable, "-m", "venv", RUNTIME])
-  py = _runtime_python()
-
-  print("Installing dependencies into the venv ...")
-  subprocess.check_call([py, "-m", "pip", "install", "--upgrade", "pip"])
-  subprocess.check_call([py, "-m", "pip", "install", *REQUIREMENTS])
+from gnm_maya.services import bootstrap  # noqa: E402
 
 
 def main():
-  if os.path.isdir(RUNTIME):
-    import shutil
-    shutil.rmtree(RUNTIME)
-  os.makedirs(RUNTIME)
-
-  if IS_WINDOWS:
-    _build_windows()
-  else:
-    _build_posix()
+  shutil.rmtree(bootstrap.RUNTIME_DIR, ignore_errors=True)
+  bootstrap.ensure_runtime(status=print)
+  if not bootstrap.runtime_available():
+    sys.exit("Runtime build finished but it is not usable: %s"
+             % bootstrap.RUNTIME_DIR)
 
   print("Self-test: generating a template head via the runtime ...")
   out = os.path.join(HERE, "_buildtest")
   subprocess.check_call(
-      [_runtime_python(),
-       os.path.join(EXTERNAL, "generate.py"), "--out", out, "--template"])
-  import shutil
+      [bootstrap.runtime_python(),
+       os.path.join(HERE, "external", "generate.py"), "--out", out,
+       "--template"])
   shutil.rmtree(out, ignore_errors=True)
 
-  print("\nDone. Runtime ready at:", RUNTIME)
+  print("\nDone. Runtime (Python %d.%d) ready at: %s"
+        % (bootstrap.runtime_version() + (bootstrap.RUNTIME_DIR,)))
   print("Ship: GNM.mod + the gnm-maya/ folder. Users drop both into "
         "~/Documents/maya/modules (or just drag drag_and_drop_install.py "
         "into Maya).")

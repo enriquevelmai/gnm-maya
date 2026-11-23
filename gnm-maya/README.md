@@ -32,10 +32,14 @@ with no ABI concerns:
 
 - **Windows** — a portable embeddable CPython: self-contained and relocatable,
   runs **with no Python install** on the machine.
-- **Linux/macOS** — there is no embeddable CPython, so a **venv inside the
-  module** is built on first run from your `python3` (3.9+; Maya's own Python
-  is the fallback). All packages stay under `runtime/`; if you move the module
-  folder later, delete `runtime/` and it rebuilds on next launch.
+- **Linux/macOS** — a portable, relocatable CPython
+  ([python-build-standalone](https://github.com/astral-sh/python-build-standalone),
+  the build `uv` uses), also with **no Python install** needed. If that download
+  fails, a venv is built from a local Python 3.12+ instead.
+
+The runtime is Python **3.12** (google/GNM needs 3.12+). An older runtime from
+a previous gnm-maya version is detected and rebuilt the next time you open the
+panel.
 
 ```
 drag_and_drop_install.py    <- drag into Maya to install (at the repo top)
@@ -79,17 +83,16 @@ panel offers the same first-run setup.
 
 Per-platform notes:
 
-- **Windows** — nothing else needed; the runtime is fully self-contained.
-- **Linux** — needs `python3` (3.9+) with the `venv` module (Debian/Ubuntu:
-  `sudo apt install python3-venv`). If none is found, Maya's own `mayapy` is
-  used to build the venv.
-- **macOS** — needs `python3` (3.9+); the Xcode Command Line Tools or a
-  Homebrew Python both work, and `mayapy` is the fallback here too.
+- **Windows / macOS / Linux** — nothing else needed; the runtime is fully
+  self-contained (Apple Silicon and Intel Macs, x86_64/aarch64 Linux).
+- Fallback only (offline or blocked download): a local Python 3.12+ is used to
+  build a venv — python.org, Homebrew, or Maya's own `mayapy` if it is 3.12+.
+  On Debian/Ubuntu that needs `python3-venv`.
 - Photo fitting (MediaPipe/OpenCV) was validated on Windows; on Linux/macOS
   the same pip install is attempted and any failure is reported in a dialog —
   everything else works without it.
 
-> Dev rebuild of the runtime without the dialog: `py -3.11 gnm-maya/build_module.py`
+> Dev rebuild of the runtime without the dialog: `python gnm-maya/build_module.py`
 > (Windows) or `python3 gnm-maya/build_module.py` (Linux/macOS)
 
 ## Use

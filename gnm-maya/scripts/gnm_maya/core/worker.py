@@ -23,6 +23,15 @@ class GnmWorker(object):
 
   def __init__(self):
     config.check_install()
+    from gnm_maya.services import bootstrap
+    if bootstrap.runtime_outdated():
+      ver = bootstrap.runtime_version()
+      raise RuntimeError(
+          "The module's Python runtime (%s) is too old for the current "
+          "google/GNM, which needs Python %d.%d+.\nOpen the GNM panel "
+          "(shelf icon) to rebuild it automatically."
+          % ("%d.%d" % ver if ver else "unknown version",
+             bootstrap.MIN_PY[0], bootstrap.MIN_PY[1]))
     self.session_dir = tempfile.mkdtemp(prefix="gnm_session_")
     self._verts_path = os.path.join(self.session_dir, "vertices.bin")
     self._seq = 0

@@ -3,16 +3,20 @@
 The repo ships only code + docs. Two heavyweight pieces are produced on demand
 (same pattern as the photo-fitting deps):
 
-  runtime/            the module's own Python 3 with numpy/h5py/etils/...
-                      - Windows: portable embeddable CPython 3.11.9
-                        (python.org, ~11 MB) + pip via get-pip.py
-                      - Linux/macOS: a venv built from the system ``python3``
-                        (or Maya's own mayapy as a fallback)
+  runtime/            the module's own Python 3.12 with numpy/h5py/etils/...
+                      - Windows: portable embeddable CPython (python.org)
+                        + pip via get-pip.py
+                      - Linux/macOS: portable relocatable CPython
+                        (astral-sh/python-build-standalone, the build uv
+                        uses); a venv from a local Python 3.12+ is only the
+                        fallback if that download fails
   external/gnm_repo/  the google/GNM repo zip (~40 MB) via the updater
 
 Everything installs inside the module folder; nothing touches the system.
-(The posix venv references the host interpreter it was built from — if you
-move the module folder afterwards, delete ``runtime/`` and let it rebuild.)
+
+google/GNM needs Python >= 3.12 (PEP 695 generics + jaxtyping since
+2026-11-10). A runtime older than that, or missing a core package, counts as
+unavailable and is rebuilt by the next first-run setup.
 """
 
 from __future__ import annotations
@@ -20,6 +24,9 @@ from __future__ import annotations
 import glob
 import logging
 import os
+import platform
+import re
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -30,17 +37,29 @@ logger = logging.getLogger(__name__)
 
 IS_WINDOWS = os.name == "nt"
 
-PY_VER = "3.11.9"
+# Oldest Python the vendored google/GNM imports on (PEP 695 syntax).
+MIN_PY = (3, 12)
+
+PY_VER = "3.12.10"  # last 3.12 with an official Windows embeddable zip
 EMBED_URL = ("https://www.python.org/ftp/python/%s/"
              "python-%s-embed-amd64.zip" % (PY_VER, PY_VER))
 GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 
-# Core deps for the numpy GNM head path (validated set; h5py = semantic
-# sampler). The heavy photo-fitting stack stays separate (fitting_deps.py).
-CORE_PACKAGES = ["numpy", "absl-py", "etils", "immutabledict", "einops",
-                 "typing_extensions", "h5py"]
+# Portable CPython for macOS/Linux (pinned release; pip included, relocatable).
+PBS_RELEASE = "20261110"
+PBS_PY_VER = "3.12.16"
+PBS_URL = ("https://github.com/astral-sh/python-build-standalone/releases/"
+           "download/{rel}/cpython-{ver}%2B{rel}-{triple}-install_only.tar.gz")
 
-_PTH = "python311.zip\n.\nLib\\site-packages\n\nimport site\n"
+# Core deps for the numpy GNM head path (validated set; h5py = semantic
+# sampler, jaxtyping = GNM's array annotations). The heavy photo-fitting
+# stack stays separate (fitting_deps.py).
+CORE_PACKAGES = ["numpy", "absl-py", "etils", "immutabledict", "einops",
+                 "typing_extensions", "h5py", "jaxtyping"]
+# Packages that must be present for the runtime to count as usable.
+_REQUIRED_IMPORTS = ("numpy", "jaxtyping")
+
+_PTH = "python312.zip\n.\nLib\\site-packages\n\nimport site\n"
 
 RUNTIME_DIR = os.path.join(config.MODULE_ROOT, "runtime")
 GNM_REPO_DIR = os.path.join(config.EXTERNAL_DIR, "gnm_repo")
@@ -53,7 +72,7 @@ def runtime_python():
   yet — this is where the bootstrap puts it)."""
   if IS_WINDOWS:
     return os.path.join(RUNTIME_DIR, "python.exe")
-  for name in ("python3", "python"):  # venv creates both; prefer python3
+  for name in ("python3", "python"):  # both layouts ship both; prefer python3
     p = os.path.join(RUNTIME_DIR, "bin", name)
     if os.path.isfile(p):
       return p
@@ -64,17 +83,41 @@ def site_packages_dirs():
   """Candidate site-packages dirs inside the runtime (existing ones only)."""
   if IS_WINDOWS:
     dirs = [os.path.join(RUNTIME_DIR, "Lib", "site-packages")]
-  else:  # venv layout: lib/python3.X/site-packages
+  else:  # lib/python3.X/site-packages (portable build and venv alike)
     dirs = glob.glob(os.path.join(RUNTIME_DIR, "lib", "python3*",
                                   "site-packages"))
   return [d for d in dirs if os.path.isdir(d)]
 
 
+def runtime_version():
+  """(major, minor) of the installed runtime, read from its file layout
+  (no subprocess), or None if it cannot be told."""
+  if IS_WINDOWS:
+    pat, rx = os.path.join(RUNTIME_DIR, "python3*.dll"), r"^python3(\d+)\.dll$"
+  else:
+    pat, rx = os.path.join(RUNTIME_DIR, "lib", "python3.*"), r"^python3\.(\d+)$"
+  found = []
+  for path in glob.glob(pat):
+    m = re.match(rx, os.path.basename(path))
+    if m:
+      found.append((3, int(m.group(1))))
+  return max(found) if found else None
+
+
 def runtime_available():
   if not os.path.isfile(runtime_python()):
     return False
-  return any(os.path.isdir(os.path.join(d, "numpy"))
+  ver = runtime_version()
+  if ver is None or ver < MIN_PY:
+    return False
+  return any(all(os.path.isdir(os.path.join(d, mod))
+                 for mod in _REQUIRED_IMPORTS)
              for d in site_packages_dirs())
+
+
+def runtime_outdated():
+  """True if a runtime exists but must be rebuilt (old Python / missing deps)."""
+  return os.path.exists(RUNTIME_DIR) and not runtime_available()
 
 
 def gnm_repo_available():
@@ -120,26 +163,72 @@ def _run(cmd, what):
   return r
 
 
-def _host_python():
-  """A Python 3.9+ on this machine that can create the module's venv.
+def _py_ok(exe):
+  """True if ``exe`` runs and is at least MIN_PY."""
+  try:
+    r = subprocess.run(
+        [exe, "-c", "import sys; print(sys.version_info[:2] >= %r)"
+         % (MIN_PY,)],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        universal_newlines=True, timeout=30, creationflags=_NO_WINDOW)
+    return r.stdout.strip() == "True"
+  except Exception:
+    return False
 
-  Prefers a system ``python3``; falls back to the interpreter we are running
-  in (mayapy — Maya ships a full CPython that can build venvs).
+
+def _host_python():
+  """A Python >= MIN_PY on this machine that can build a venv, or None.
+
+  Maya started from the Dock/launcher has a minimal PATH (no Homebrew), so
+  the usual install locations are probed explicitly, then Maya's mayapy.
   """
-  import shutil
-  for name in ("python3", "python"):
-    exe = shutil.which(name)
-    if not exe:
-      continue
-    try:
-      r = subprocess.run(
-          [exe, "-c", "import sys; print(sys.version_info[:2] >= (3, 9))"],
-          stdout=subprocess.PIPE, universal_newlines=True, timeout=15)
-      if r.stdout.strip() == "True":
+  names = ["python3.%d" % m for m in range(14, MIN_PY[1] - 1, -1)]
+  names += ["python3", "python"]
+  cands = [shutil.which(n) for n in names]
+  for d in ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"):
+    cands += [os.path.join(d, n) for n in names]
+  cands += sorted(glob.glob(
+      "/Library/Frameworks/Python.framework/Versions/3.*/bin/python3"),
+      reverse=True)
+  loc = os.environ.get("MAYA_LOCATION")
+  if loc:
+    cands.append(os.path.join(loc, "bin", "mayapy"))
+  seen = set()
+  for exe in cands:
+    if exe and exe not in seen and os.path.isfile(exe):
+      seen.add(exe)
+      if _py_ok(exe):
         return exe
-    except Exception:
-      continue
-  return sys.executable  # mayapy
+  return None
+
+
+def _pbs_triple():
+  """python-build-standalone target triple for this machine, or None."""
+  arch = {"arm64": "aarch64", "aarch64": "aarch64",
+          "x86_64": "x86_64", "amd64": "x86_64"}.get(platform.machine().lower())
+  if not arch:
+    return None
+  if sys.platform == "darwin":
+    return "%s-apple-darwin" % arch
+  if sys.platform.startswith("linux"):
+    return "%s-unknown-linux-gnu" % arch
+  return None
+
+
+def _clear_runtime():
+  """Remove an old/partial runtime so it can be rebuilt from scratch."""
+  if not os.path.exists(RUNTIME_DIR):
+    return
+  try:  # the resident worker runs from the runtime; release it first
+    from gnm_maya.core import worker
+    worker.shutdown_worker()
+  except Exception:
+    pass
+  shutil.rmtree(RUNTIME_DIR, ignore_errors=True)
+  if os.path.exists(RUNTIME_DIR):
+    raise RuntimeError(
+        "Could not remove the old Python runtime at\n%s\nClose Maya, delete "
+        "that folder by hand and start Maya again." % RUNTIME_DIR)
 
 
 def _ensure_runtime_windows(status):
@@ -152,7 +241,7 @@ def _ensure_runtime_windows(status):
   os.makedirs(RUNTIME_DIR, exist_ok=True)
   with zipfile.ZipFile(io.BytesIO(blob)) as z:
     z.extractall(RUNTIME_DIR)
-  with open(os.path.join(RUNTIME_DIR, "python311._pth"), "w") as f:
+  with open(os.path.join(RUNTIME_DIR, "python312._pth"), "w") as f:
     f.write(_PTH)
 
   py = runtime_python()
@@ -170,22 +259,58 @@ def _ensure_runtime_windows(status):
        "pip install")
 
 
-def _ensure_runtime_posix(status):
-  """Linux/macOS: a venv inside the module, built from a host python3.
+def _install_portable_posix(status):
+  """Download + unpack the relocatable CPython into runtime/. Raises on any
+  failure (the caller then falls back to a venv from a local Python)."""
+  import io
+  import tarfile
 
-  There is no official embeddable CPython for posix, so a venv is the
-  contained equivalent: all packages live under ``runtime/``; only the
-  interpreter itself is referenced from the host.
-  """
-  host = _host_python()
-  status("Creating Python environment (venv)…")
+  triple = _pbs_triple()
+  if not triple:
+    raise RuntimeError("no portable Python build for %s/%s"
+                       % (sys.platform, platform.machine()))
+  status("Downloading portable Python %s…" % PBS_PY_VER)
+  blob = _download(PBS_URL.format(rel=PBS_RELEASE, ver=PBS_PY_VER,
+                                  triple=triple))
+  tmp = RUNTIME_DIR + "_tmp"
+  shutil.rmtree(tmp, ignore_errors=True)
+  os.makedirs(tmp)
   try:
-    _run([host, "-m", "venv", RUNTIME_DIR], "venv creation")
-  except RuntimeError as e:
-    raise RuntimeError(
-        "Could not create the module's Python environment with %r.\n"
-        "On Linux, install your distro's python3-venv package and retry.\n\n%s"
-        % (host, e))
+    with tarfile.open(fileobj=io.BytesIO(blob), mode="r:gz") as t:
+      if hasattr(tarfile, "data_filter"):
+        t.extractall(tmp, filter="data")
+      else:
+        t.extractall(tmp)
+    os.rename(os.path.join(tmp, "python"), RUNTIME_DIR)  # strip "python/"
+  finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+  if not _py_ok(runtime_python()):
+    raise RuntimeError("the downloaded Python does not run on this machine")
+
+
+def _ensure_runtime_posix(status):
+  """macOS/Linux: portable CPython inside the module; venv as a fallback."""
+  try:
+    _install_portable_posix(status)
+  except Exception as e:
+    logger.warning("Portable Python unavailable (%s); trying a venv from a "
+                   "local Python %d.%d+.", e, MIN_PY[0], MIN_PY[1])
+    shutil.rmtree(RUNTIME_DIR, ignore_errors=True)
+    host = _host_python()
+    if not host:
+      raise RuntimeError(
+          "Could not download the portable Python (%s), and no Python "
+          "%d.%d or newer was found on this machine.\nInstall Python 3.12+ "
+          "from python.org (or Homebrew) and run the setup again."
+          % (e, MIN_PY[0], MIN_PY[1]))
+    status("Creating Python environment (venv)…")
+    try:
+      _run([host, "-m", "venv", RUNTIME_DIR], "venv creation")
+    except RuntimeError as e2:
+      raise RuntimeError(
+          "Could not create the module's Python environment with %r.\n"
+          "On Linux, install your distro's python3-venv package and retry."
+          "\n\n%s" % (host, e2))
 
   py = runtime_python()
   status("Installing core packages (numpy, h5py, …)…")
@@ -194,13 +319,19 @@ def _ensure_runtime_posix(status):
 
 
 def ensure_runtime(status=lambda msg: None):
-  """Build/download the module's own Python runtime if it is missing."""
+  """Build/download the module's own Python runtime if it is missing or too
+  old for the vendored GNM (an old one is replaced)."""
   if runtime_available():
     return False
-  if IS_WINDOWS:
-    _ensure_runtime_windows(status)
-  else:
-    _ensure_runtime_posix(status)
+  _clear_runtime()
+  try:
+    if IS_WINDOWS:
+      _ensure_runtime_windows(status)
+    else:
+      _ensure_runtime_posix(status)
+  except Exception:
+    shutil.rmtree(RUNTIME_DIR, ignore_errors=True)  # never keep a half-built one
+    raise
   logger.info("Runtime bootstrapped at %s", RUNTIME_DIR)
   return True
 
@@ -274,9 +405,11 @@ def ensure_all_with_dialog():
       return True
   missing = []
   if not runtime_available():
-    missing.append("portable Python runtime (~70 MB download)" if IS_WINDOWS
-                   else "Python environment (venv from your python3, "
-                        "~40 MB of packages)")
+    missing.append(
+        "Python %d.%d runtime (~70 MB download)%s" % (
+            MIN_PY[0], MIN_PY[1],
+            " — replaces the older one the current GNM can't run on"
+            if runtime_outdated() else ""))
   if not gnm_repo_available():
     missing.append("google/GNM model repo (~40 MB download)")
   if not gallery_available():

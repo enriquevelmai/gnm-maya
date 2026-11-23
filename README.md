@@ -15,9 +15,9 @@ rig baking (ARKit-52 + visemes), audio lip-sync, crowds, and more.
 1. Code ▸ Download ZIP, extract anywhere.
 2. Drag `drag_and_drop_install.py` (at the top of the extracted folder) into a
    running Maya viewport.
-3. Accept the first-run setup (Python runtime + GNM model). On Linux/macOS a
-   `python3` (3.9+, with the venv module) must be on PATH — Maya's own Python
-   is used as a fallback.
+3. Accept the first-run setup (Python runtime + GNM model). The runtime is a
+   portable Python 3.12 downloaded into the module on every OS — no Python
+   install needed.
 
 The installer **copies the module into `~/Documents/maya/modules`**, so once
 it finishes you can **delete the downloaded zip and the extracted folder**.
